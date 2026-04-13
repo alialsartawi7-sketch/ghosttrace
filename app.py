@@ -1,5 +1,5 @@
 """
-GhostTrace v5.0 — OSINT Intelligence Platform
+GhostTrace v6.0 — OSINT Intelligence Platform
 by Alsartawi
 
 Professional Edition with modular architecture
@@ -7,7 +7,7 @@ Professional Edition with modular architecture
 import sys, os, json, argparse, getpass
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from flask import Flask, render_template, request, session, redirect
+from flask import Flask, render_template, request, session, redirect, jsonify
 from config import Config
 from database.manager import Database
 from tools.registry import ToolRegistry
@@ -130,6 +130,12 @@ def create_app():
         # Allow static files
         if request.path.startswith("/static"):
             return
+        # CSRF protection on mutation requests (always, regardless of auth)
+        if request.method in ("POST", "DELETE"):
+            token = request.headers.get("X-CSRF-Token")
+            expected = session.get("csrf_token")
+            if not token or not expected or token != expected:
+                return jsonify({"error": "CSRF token invalid"}), 403
         stored = Config.load_auth_hash()
         # No password set — allow localhost only
         if not stored:
@@ -140,10 +146,20 @@ def create_app():
         if not session.get("auth"):
             return redirect("/login")
 
+    @app.after_request
+    def inject_csrf(response):
+        if "csrf_token" not in session:
+            import secrets as _secrets
+            session["csrf_token"] = _secrets.token_hex(32)
+        return response
+
     # ── Main routes ──
     @app.route("/")
     def index():
-        return render_template("index.html")
+        import secrets as _secrets
+        if "csrf_token" not in session:
+            session["csrf_token"] = _secrets.token_hex(32)
+        return render_template("index.html", csrf_token=session["csrf_token"])
 
     @app.teardown_appcontext
     def close_db(e=None):
@@ -173,12 +189,14 @@ if __name__ == "__main__":
 
     print(f"""
     ╔══════════════════════════════════════════╗
-    ║       GhostTrace v{Config.VERSION}                  ║
+    ║       GhostTrace v{Config.VERSION}                    ║
     ║       by Alsartawi                       ║
-    ║    OSINT Intelligence Platform            ║
+    ║    OSINT Intelligence Platform           ║
     ║                                          ║
     ║    http://127.0.0.1:5000                 ║
     ╚══════════════════════════════════════════╝
     """)
     app = create_app()
-    app.run(debug=True, host="127.0.0.1", port=5000, threaded=True)
+    # Debug mode via env var only — never default ON (leaks stack traces)
+    debug = os.environ.get("GT_DEBUG", "0") == "1"
+    app.run(debug=debug, host="127.0.0.1", port=5000, threaded=True)
