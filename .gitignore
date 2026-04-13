@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.pytest_cache/
+.DS_Store
+ghosttrace_data/
+ghosttrace_exports/
+*.log
