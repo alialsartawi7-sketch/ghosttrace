@@ -1,7 +1,7 @@
 """
 Database Layer — Structured access with connection pooling, pagination, dedup
 """
-import sqlite3, threading, uuid
+import sqlite3, threading, uuid, os
 from datetime import datetime
 from contextlib import contextmanager
 from config import Config
@@ -132,6 +132,7 @@ class Database:
             ("scans", "duration_sec", "ALTER TABLE scans ADD COLUMN duration_sec REAL"),
             ("scans", "error_msg", "ALTER TABLE scans ADD COLUMN error_msg TEXT"),
             ("scans", "notes", "ALTER TABLE scans ADD COLUMN notes TEXT DEFAULT ''"),
+            ("scans", "starred", "ALTER TABLE scans ADD COLUMN starred INTEGER DEFAULT 0"),
         ]
         for table, column, sql in migrations:
             try:
@@ -171,14 +172,16 @@ class ScanDB:
         with Database.connection() as conn:
             total = conn.execute("SELECT COUNT(*) FROM scans").fetchone()[0]
             scans = conn.execute(
-                "SELECT * FROM scans ORDER BY started_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM scans ORDER BY starred DESC, started_at DESC LIMIT ? OFFSET ?",
                 (per_page, offset)).fetchall()
         return {"items": [dict(s) for s in scans], "total": total, "page": page, "pages": (total + per_page - 1) // per_page}
 
     @staticmethod
     def get(sid):
+        """Return scan dict or None if not found"""
         with Database.connection() as conn:
-            return dict(conn.execute("SELECT * FROM scans WHERE id=?", (sid,)).fetchone() or {})
+            row = conn.execute("SELECT * FROM scans WHERE id=?", (sid,)).fetchone()
+            return dict(row) if row else None
 
     @staticmethod
     def save_notes(sid, notes):
@@ -196,6 +199,46 @@ class ScanDB:
         with Database.connection() as conn:
             conn.execute("DELETE FROM results WHERE scan_id=?", (sid,))
             conn.execute("DELETE FROM scans WHERE id=?", (sid,))
+
+    @staticmethod
+    def toggle_star(sid):
+        """Toggle starred status. Returns new state (True=starred, False=unstarred)."""
+        with Database.connection() as conn:
+            row = conn.execute("SELECT starred FROM scans WHERE id=?", (sid,)).fetchone()
+            if not row: return False
+            new_state = 0 if row["starred"] else 1
+            conn.execute("UPDATE scans SET starred=? WHERE id=?", (new_state, sid))
+            return bool(new_state)
+
+    @staticmethod
+    def cleanup_old(days=30, keep_starred=True):
+        """Delete scans older than N days. Never deletes starred scans if keep_starred=True."""
+        from datetime import datetime, timedelta
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat()
+        with Database.connection() as conn:
+            if keep_starred:
+                cursor = conn.execute(
+                    "DELETE FROM scans WHERE started_at<? AND (starred IS NULL OR starred=0)",
+                    (cutoff,))
+            else:
+                cursor = conn.execute("DELETE FROM scans WHERE started_at<?", (cutoff,))
+            # Orphan results cleanup
+            conn.execute("DELETE FROM results WHERE scan_id NOT IN (SELECT id FROM scans)")
+            return cursor.rowcount
+
+    @staticmethod
+    def vacuum():
+        """Reclaim disk space after deletions"""
+        with Database.connection() as conn:
+            conn.execute("VACUUM")
+
+    @staticmethod
+    def db_size_mb():
+        """Return DB file size in MB"""
+        try:
+            return round(os.path.getsize(Config.DB_PATH) / (1024 * 1024), 2)
+        except Exception:
+            return 0.0
 
 
 class ResultDB:
