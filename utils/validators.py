@@ -4,6 +4,7 @@ All user input passes through here before reaching any tool
 """
 import re, os
 from html import escape as html_escape
+from typing import Optional
 from config import Config
 
 class ValidationError(Exception):
@@ -29,7 +30,7 @@ class Validators:
         return value.strip()
 
     @classmethod
-    def domain(cls, value):
+    def domain(cls, value: str) -> str:
         """Validate and clean a domain name"""
         value = cls._check_length(value, "Domain")
         # Clean: remove protocol, email prefix, trailing slashes
@@ -48,7 +49,7 @@ class Validators:
         return value
 
     @classmethod
-    def username(cls, value):
+    def username(cls, value: str) -> str:
         """Validate a username"""
         value = cls._check_length(value, "Username", 64)
         value = value.strip().lstrip("@")  # Remove leading @ (Twitter style)
@@ -57,7 +58,7 @@ class Validators:
         return value
 
     @classmethod
-    def filepath(cls, value):
+    def filepath(cls, value: str) -> str:
         """Validate and secure a file path"""
         value = cls._check_length(value, "File path", 512)
         value = os.path.normpath(value)
@@ -77,8 +78,8 @@ class Validators:
         return value
 
     @classmethod
-    def email(cls, value):
-        """Validate an email and extract domain"""
+    def email(cls, value: str) -> str:
+        """Validate an email address format"""
         value = cls._check_length(value, "Email")
         value = value.strip().lower()
         if not cls._EMAIL.match(value):
@@ -86,7 +87,7 @@ class Validators:
         return value
 
     @classmethod
-    def scan_source(cls, value, allowed_sources=None):
+    def scan_source(cls, value: str, allowed_sources: Optional[list] = None) -> str:
         """Validate a scan source name"""
         value = cls._check_length(value, "Source", 64).lower()
         if value in ("all", "all sources"):
@@ -149,7 +150,7 @@ class Validators:
     _PHONE = re.compile(r'^\+?[0-9\s\-\(\)]{7,20}$')
 
     @classmethod
-    def detect_input_type(cls, value):
+    def detect_input_type(cls, value: str) -> tuple[str, str]:
         """Auto-detect what type of input this is"""
         value = value.strip()
         if not value:
