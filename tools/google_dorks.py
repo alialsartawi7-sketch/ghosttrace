@@ -1,4 +1,5 @@
 """Google Dorks Generator — Builds targeted search queries for manual use"""
+from urllib.parse import quote_plus
 from tools.base import ToolAdapter
 
 class GoogleDorksAdapter(ToolAdapter):
@@ -67,7 +68,7 @@ class GoogleDorksAdapter(ToolAdapter):
             cat_name = category["category"]
             for dork_template, description in category["dorks"]:
                 query = dork_template.replace("{target}", target)
-                url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+                url = f"https://www.google.com/search?q={quote_plus(query)}"
                 results.append({
                     "value": query,
                     "source": self.name,

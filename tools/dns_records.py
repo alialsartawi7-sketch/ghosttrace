@@ -11,7 +11,8 @@ class DNSRecordsAdapter(ToolAdapter):
     RECORD_TYPES = ["A", "MX", "TXT", "NS", "SOA", "AAAA", "CNAME"]
 
     def build_command(self, target, **opts):
-        rtype = opts.get("record_type", "ANY")
+        # Default A record (ANY queries are refused by many servers - RFC 8482)
+        rtype = opts.get("record_type", "A")
         return [self.cmd, target, rtype, "+noall", "+answer", "+authority"]
 
     def parse_line(self, line, context):
