@@ -2,6 +2,7 @@
 Intelligence Layer — Entity correlation, confidence scoring, graph building
 This is what makes GhostTrace more than just a tool wrapper
 """
+from typing import Any, Optional
 from database.manager import EntityDB, Database
 from config import Config
 from utils.logger import log
@@ -10,8 +11,8 @@ class Correlator:
     """Finds and stores relationships between discovered entities"""
 
     @staticmethod
-    def process_result(value, rtype, source, scan_target=None):
-        """Analyze a result and create entity relationships"""
+    def process_result(value: str, rtype: str, source: str, scan_target: Optional[str] = None) -> list[str]:
+        """Analyze a result and create entity relationships. Returns list of relation descriptions."""
         relations = []
 
         if rtype == "email" and "@" in value:
@@ -67,7 +68,7 @@ class Scorer:
         return round(min(1.0, base * corroboration * type_mult), 2)
 
     @staticmethod
-    def corroboration_bonus(value):
+    def corroboration_bonus(value: str) -> float:
         """Extra bonus if this value was seen in previous scans"""
         from database.manager import ResultDB
         count = ResultDB.count_value(value)
