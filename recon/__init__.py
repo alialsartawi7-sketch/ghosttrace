@@ -218,7 +218,7 @@ class HTTPProber:
 
 # ═══════════════ PORT SCANNER ═══════════════
 class PortScanner:
-    """Lightweight port scanner — top common ports only"""
+    """Lightweight port scanner with banner grabbing"""
 
     COMMON_PORTS = {
         21: "FTP", 22: "SSH", 23: "Telnet", 25: "SMTP",
@@ -230,11 +230,42 @@ class PortScanner:
         8888: "HTTP-Alt2", 9090: "WebApp", 27017: "MongoDB"
     }
 
+    # Probes to send to different port types for banner grabbing
+    _PROBES = {
+        80: b"HEAD / HTTP/1.0\r\nHost: target\r\n\r\n",
+        443: b"",  # SSL — skip raw banner
+        8080: b"HEAD / HTTP/1.0\r\nHost: target\r\n\r\n",
+        8443: b"",
+    }
+
+    @staticmethod
+    def grab_banner(ip, port, timeout=2):
+        """Grab service banner from open port"""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            sock.connect((ip, port))
+            # Send probe if we have one, otherwise just listen
+            probe = PortScanner._PROBES.get(port)
+            if probe:
+                sock.send(probe.replace(b"target", ip.encode()))
+            else:
+                sock.send(b"\r\n")
+            banner = sock.recv(1024).decode(errors='ignore').strip()
+            sock.close()
+            # Clean up — take first meaningful line
+            for line in banner.splitlines():
+                line = line.strip()
+                if line and len(line) > 3:
+                    return line[:200]
+            return banner[:200] if banner else None
+        except Exception:
+            return None
+
     @staticmethod
     def scan(host, ports=None, timeout=1):
         """Scan specific ports on a host"""
         ports = ports or PortScanner.COMMON_PORTS.keys()
-        # Resolve hostname to IP first
         try:
             ip = socket.gethostbyname(host)
         except socket.gaierror:
@@ -248,7 +279,11 @@ class PortScanner:
                 result = sock.connect_ex((ip, port))
                 if result == 0:
                     service = PortScanner.COMMON_PORTS.get(port, "Unknown")
-                    open_ports.append({"port": port, "service": service, "state": "open"})
+                    banner = PortScanner.grab_banner(ip, port)
+                    entry = {"port": port, "service": service, "state": "open"}
+                    if banner:
+                        entry["banner"] = banner
+                    open_ports.append(entry)
                 sock.close()
             except Exception:
                 pass
