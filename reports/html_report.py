@@ -226,6 +226,32 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
 </p>
 </div>'''
 
+        # ═══════════════ RESULT TYPE CHART (SVG) ═══════════════
+        if len(active_cats) > 1:
+            chart_w, chart_h, bar_max = 500, 180, 140
+            max_count = max(len(v) for v in active_cats.values()) or 1
+            bar_w = max(20, min(60, chart_w // (len(active_cats) + 1)))
+            gap = max(5, (chart_w - bar_w * len(active_cats)) // (len(active_cats) + 1))
+            bars_svg = ""
+            for i, (t, items) in enumerate(active_cats.items()):
+                info = RESULT_TYPES.get(t, {})
+                color = info.get("color", "#4f8ef7")
+                h = max(4, int(len(items) / max_count * bar_max))
+                x = gap + i * (bar_w + gap)
+                y = chart_h - h - 30
+                label = info.get("label", t)[:8]
+                bars_svg += f'<rect x="{x}" y="{y}" width="{bar_w}" height="{h}" rx="4" fill="{color}" opacity="0.85"/>'
+                bars_svg += f'<text x="{x + bar_w//2}" y="{y - 5}" text-anchor="middle" font-size="11" font-weight="600" fill="#333">{len(items)}</text>'
+                bars_svg += f'<text x="{x + bar_w//2}" y="{chart_h - 12}" text-anchor="middle" font-size="9" fill="#666">{label}</text>'
+            html += f'''
+<div class="sec">
+<div class="sec-h"><span class="sec-icon">📊</span><span class="sec-title">Results by Type</span></div>
+<svg viewBox="0 0 {chart_w} {chart_h}" style="width:100%;max-width:500px;margin:10px auto;display:block">
+<line x1="0" y1="{chart_h-30}" x2="{chart_w}" y2="{chart_h-30}" stroke="#ddd" stroke-width="1"/>
+{bars_svg}
+</svg>
+</div>'''
+
         # ═══════════════ KEY FINDINGS (Top 10) ═══════════════
         # Sort all results by confidence, pick top 10 unique high-value findings
         key_findings = sorted(results, key=lambda r: r.get("confidence", 0), reverse=True)
@@ -257,6 +283,29 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
                 html += f'<td class="td-c"><div class="conf-bar"><div class="conf-fill {conf_cls}" style="width:{bar_w}%"></div></div><span class="{conf_cls}">{conf:.0%}</span></td></tr>'
             html += '</tbody></table></div>'
 
+        # ═══════════════ ENTITY TIMELINE ═══════════════
+        try:
+            from database.manager import Database
+            with Database.connection() as conn:
+                recurring = conn.execute(
+                    """SELECT value, type, first_seen, last_seen, scan_count
+                       FROM entities WHERE scan_count > 1
+                       ORDER BY scan_count DESC LIMIT 15""").fetchall()
+            if recurring:
+                html += '''
+<div class="sec">
+<div class="sec-h"><span class="sec-icon">🕐</span><span class="sec-title">Entity Timeline</span><span class="sec-count">Recurring findings</span></div>
+<table><thead><tr><th class="th-n">#</th><th>Entity</th><th>Type</th><th>First Seen</th><th>Last Seen</th><th>Count</th></tr></thead><tbody>'''
+                for i, e in enumerate(recurring, 1):
+                    first = e["first_seen"][:10] if e["first_seen"] else "—"
+                    last = e["last_seen"][:10] if e["last_seen"] else "—"
+                    html += f'<tr><td class="td-n">{i}</td><td class="td-v">{escape(e["value"])}</td>'
+                    html += f'<td>{escape(e["type"])}</td><td>{first}</td><td>{last}</td>'
+                    html += f'<td style="font-weight:600;color:var(--accent,#4f8ef7)">{e["scan_count"]}x</td></tr>'
+                html += '</tbody></table></div>'
+        except Exception:
+            pass  # DB may not be available in tests
+
         # ═══════════════ RESULT SECTIONS ═══════════════
         for t, items in active_cats.items():
             info = RESULT_TYPES[t]
@@ -286,6 +335,38 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
 <span><span class="conf-dot" style="background:#4f8ef7"></span>{stats.get("medium",0)} Medium</span>
 <span><span class="conf-dot" style="background:#3ecf8e"></span>{stats.get("low",0)} Low</span>
 </div></div>'''
+
+                # ═══════════════ TOP 3 TARGETS (attacker mindset) ═══════════════
+                top_targets = summary.get("top_3_targets", [])
+                if top_targets:
+                    html += '''<div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border-left:4px solid #dc2626;padding:16px;margin-bottom:16px;border-radius:6px">
+<h4 style="color:#991b1b;margin-bottom:12px;font-size:13px;text-transform:uppercase;letter-spacing:1px">🎯 TOP 3 Targets to Investigate First</h4>'''
+                    for t in top_targets:
+                        rank = t.get("rank", "?")
+                        hostname = escape(t.get("hostname", "?"))
+                        score = t.get("score", 0)
+                        level = t.get("level", "info")
+                        why = t.get("why_matters", [])
+                        how = t.get("how_to_exploit", [])
+                        next_step = escape(t.get("next_action", ""))
+                        html += f'''<div style="background:white;padding:12px;margin-bottom:10px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+<span style="background:#dc2626;color:white;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700">{rank}</span>
+<span style="font-family:var(--mono);font-weight:600;font-size:13px">{hostname}</span>
+<span style="margin-left:auto;background:#dc2626;color:white;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">{score}/100 {level.upper()}</span>
+</div>
+<div style="margin-left:36px;font-size:11px;color:#444">
+<div style="margin-bottom:6px"><b style="color:#dc2626">Why it matters:</b><ul style="margin:4px 0 0 16px;padding:0">'''
+                        for w in why[:3]:
+                            html += f'<li>{escape(w)}</li>'
+                        html += '</ul></div>'
+                        if how:
+                            html += '<div style="margin-bottom:6px"><b style="color:#d97706">How to exploit:</b><ul style="margin:4px 0 0 16px;padding:0">'
+                            for h in how[:2]:
+                                html += f'<li style="font-family:var(--mono);font-size:10px">{escape(h)}</li>'
+                            html += '</ul></div>'
+                        html += f'<div><b style="color:#059669">Next action:</b> {next_step}</div></div></div>'
+                    html += '</div>'
 
                 # Individual host cards
                 for a in scored[:15]:  # Top 15
