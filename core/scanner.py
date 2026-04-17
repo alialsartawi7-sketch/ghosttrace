@@ -29,18 +29,21 @@ def run_tool_scan(tool_name, target, module, **opts):
     """
     # Rate limit
     if not scan_limiter.allow("scan"):
+        log.warning(f"Rate limit hit for {tool_name}/{target}")
         yield sse("log", {"type": "err", "msg": "Rate limit: too many scans. Wait a moment."})
         yield sse("scan_done", {"total": 0, "scan_id": "none"})
         return
 
     # Concurrency limit
     if _count_active() >= Config.MAX_CONCURRENT_SCANS:
+        log.warning(f"Concurrency limit hit ({Config.MAX_CONCURRENT_SCANS})")
         yield sse("log", {"type": "err", "msg": f"Max {Config.MAX_CONCURRENT_SCANS} concurrent scans. Wait for one to finish."})
         yield sse("scan_done", {"total": 0, "scan_id": "none"})
         return
 
     tool = ToolRegistry.get(tool_name)
     if not tool:
+        log.error(f"Unknown tool requested: {tool_name}")
         yield sse("log", {"type": "err", "msg": f"Unknown tool: {tool_name}"})
         yield sse("scan_done", {"total": 0, "scan_id": "none"})
         return
@@ -51,6 +54,7 @@ def run_tool_scan(tool_name, target, module, **opts):
     with _lock:
         active_scans[scan_id] = scan_ref
 
+    log.info(f"Scan {scan_id[:8]} started: {tool.name} → {target}")
     yield sse("scan_start", {"scan_id": scan_id, "tool": tool.name, "target": target})
 
     # Build command
@@ -179,6 +183,7 @@ def run_tool_scan(tool_name, target, module, **opts):
     # Finish
     status = "complete" if not scan_ref.get("stop") else "aborted"
     ScanDB.finish(scan_id, status, found_count)
+    log.info(f"Scan {scan_id[:8]} {status}: {found_count} results")
     yield sse("progress", {"pct": 100, "label": "Complete"})
     yield sse("log", {"type": "info", "msg": f"Scan complete — {found_count} results found"})
     yield sse("scan_done", {"total": found_count, "scan_id": scan_id})
