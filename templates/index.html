@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GhostTrace v5.0 — by Alsartawi</title>
+<title>GhostTrace v6.0 — by Alsartawi</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0a0e16;--surface:#111827;--raised:#1a2238;--border:#243050;--border-s:#2e3d5a;
@@ -52,15 +52,15 @@ body{background:var(--bg);color:var(--text-1);font-family:var(--sans);height:100
 .fade-in{animation:fadeIn .3s ease}.slide-in{animation:slideIn .2s ease}
 
 /* NAV */
-nav{height:48px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 16px;gap:16px;flex-shrink:0}
+nav{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:18px;flex-shrink:0}
 .brand{display:flex;align-items:center;gap:8px}
 .brand-icon{width:26px;height:26px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;animation:glow 3s ease-in-out infinite}
 .brand-icon svg{width:14px;height:14px}
 .brand-name{font-size:14px;font-weight:600;color:var(--text-1)}.brand-ver{font-size:9px;color:var(--text-3);font-family:var(--mono)}
 .nav-tabs{display:flex;gap:2px;align-items:center}
-.ntab{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text-2);transition:all .15s;border:1px solid transparent}
+.ntab{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text-2);transition:all .15s;border:1px solid transparent}
 .ntab:hover{color:var(--text-1);background:var(--raised)}.ntab.active{color:var(--accent);background:var(--accent-d);border-color:var(--accent-b)}
-.ntab svg{width:13px;height:13px;opacity:.7}.ntab.active svg{opacity:1}
+.ntab svg{width:14px;height:14px;opacity:.7}.ntab.active svg{opacity:1}
 .nav-right{margin-left:auto;display:flex;align-items:center;gap:8px}
 .pill{display:flex;align-items:center;gap:6px;padding:4px 10px;background:var(--raised);border:1px solid var(--border);border-radius:6px;font-size:11px}
 .pill-v{font-family:var(--mono);font-weight:500;color:var(--success)}.pill-l{color:var(--text-3)}
@@ -80,13 +80,13 @@ nav{height:48px;background:var(--surface);border-bottom:1px solid var(--border);
 /* LAYOUT */
 .ws{flex:1;display:flex;overflow:hidden}
 .left{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border);overflow:hidden}
-.cfg{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 16px;flex-shrink:0}
-.cfg-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.cfg{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 18px;flex-shrink:0}
+.cfg-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
 .cfg-t{font-size:11px;font-weight:600;color:var(--text-2);letter-spacing:.8px;text-transform:uppercase}
 .badge{font-size:9px;font-family:var(--mono);padding:2px 7px;border-radius:4px;font-weight:500;background:#f1606018;color:var(--danger);border:1px solid #f1606030}
-.cf{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
-.fd{display:flex;flex-direction:column;gap:3px}.fl{font-size:10px;font-weight:500;color:var(--text-3)}
-.fd input,.fd select{background:var(--raised);border:1px solid var(--border-s);color:var(--text-1);font-family:var(--mono);font-size:11px;padding:7px 10px;border-radius:6px;outline:none;transition:all .15s}
+.cf{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap}
+.fd{display:flex;flex-direction:column;gap:4px}.fl{font-size:10px;font-weight:500;color:var(--text-3)}
+.fd input,.fd select{background:var(--raised);border:1px solid var(--border-s);color:var(--text-1);font-family:var(--mono);font-size:11px;padding:8px 11px;border-radius:6px;outline:none;transition:all .15s}
 .fd input:focus,.fd select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-d)}
 .fd input::placeholder{color:var(--text-3)}.fd select option{background:var(--raised)}.fd.grow{flex:1;min-width:140px}
 .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:6px;border:none;font-family:var(--sans);font-size:12px;font-weight:500;cursor:pointer;transition:all .2s;white-space:nowrap}
@@ -129,7 +129,7 @@ nav{height:48px;background:var(--surface);border-bottom:1px solid var(--border);
 /* RIGHT */
 .right{width:310px;display:flex;flex-direction:column;flex-shrink:0;background:var(--surface);overflow:hidden}
 .cards{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);flex-shrink:0;border-bottom:1px solid var(--border)}
-.card{background:var(--surface);padding:12px 14px;display:flex;flex-direction:column;gap:3px;transition:background .2s}
+.card{background:var(--surface);padding:14px 16px;display:flex;flex-direction:column;gap:4px;transition:background .2s}
 .card:hover{background:var(--raised)}
 .cv{font-family:var(--mono);font-size:20px;font-weight:500;line-height:1;transition:all .3s}
 .cv.g{color:var(--success)}.cv.b{color:var(--accent)}.cv.o{color:var(--warn)}.cv.r{color:var(--danger)}
@@ -232,16 +232,22 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
 
 /* RESPONSIVE */
 @media(max-width:900px){.ws{flex-direction:column}.left{border-right:none;border-bottom:1px solid var(--border);flex:none;height:55%}.right{width:100%;flex:1}
-  .ntab span{display:none}.pill-l{display:none}}
-@media(max-width:600px){nav{padding:0 8px;gap:6px}.ntab{padding:4px 6px;font-size:10px}.cfg{padding:10px}.term{padding:6px 10px}
-  .cli{padding:4px 10px}footer{padding:0 8px;gap:8px;font-size:9px}}
+  .ntab span{display:none}.pill-l{display:none}.cards{flex-wrap:wrap}.card{min-width:60px}}
+@media(max-width:600px){nav{padding:0 8px;gap:4px;flex-wrap:wrap}.ntab{padding:4px 5px;font-size:10px}
+  .cfg{padding:8px}.cf{flex-direction:column;gap:6px}.fd{width:100%}.btn{width:100%;justify-content:center}
+  .term{padding:4px 8px}.cli{padding:4px 8px;font-size:11px}footer{padding:0 6px;gap:6px;font-size:9px;flex-wrap:wrap}
+  .cards{gap:4px}.card{min-width:50px;padding:6px}.cv{font-size:18px}
+  .ri-v{font-size:11px;word-break:break-all}.ri-meta{font-size:9px}
+  .hist-item{flex-direction:column;align-items:flex-start;gap:4px}.hist-actions{margin-left:0}
+  #graph-container{min-height:250px}.graph-fs-btn{padding:4px 8px;font-size:12px}
+  .modal-c{width:95%;max-width:none;margin:10px}}
 </style>
 </head>
 <body>
 <nav>
   <div class="brand">
     <div class="brand-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="#fff" stroke-width="1.5"/><circle cx="8" cy="8" r="2" fill="#fff"/><line x1="1" y1="8" x2="3.5" y2="8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><line x1="12.5" y1="8" x2="15" y2="8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="1" x2="8" y2="3.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="12.5" x2="8" y2="15" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
-    <div><div class="brand-name">GhostTrace</div><div class="brand-ver">v5.0 by Alsartawi</div></div>
+    <div><div class="brand-name">GhostTrace</div><div class="brand-ver">v6.0 by Alsartawi</div></div>
   </div>
   <div class="nav-tabs">
     <div class="ntab active" onclick="switchMod('auto',this)" title="Auto Pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span>Auto</span></div>
@@ -332,6 +338,10 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
           <button class="btn btn-d" onclick="document.getElementById('f-upload').click()" title="Upload file"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg> Upload</button>
           <button class="btn btn-p" onclick="startScan()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21"/></svg>Extract</button>
         </div>
+        <div id="drop-zone" style="border:2px dashed var(--border);border-radius:8px;padding:20px;text-align:center;color:var(--text-3);margin-top:8px;cursor:pointer;transition:all .2s" onclick="document.getElementById('f-upload').click()">
+          <div style="font-size:24px;margin-bottom:4px">📁</div>
+          <div style="font-size:12px">Drag & drop a file here, or click to browse</div>
+        </div>
       </div>
       <!-- PHONE -->
       <div id="fields-phone" style="display:none">
@@ -378,6 +388,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
           <div class="fd grow"><span class="fl">Domain (or use last scan results)</span><input id="f-recon-domain" placeholder="example.com"></div>
           <div class="tor-toggle"><label class="tor-cb"><input type="checkbox" id="recon-ports"><span class="slider"></span></label><span class="tor-label">Ports</span></div>
           <div class="tor-toggle"><label class="tor-cb"><input type="checkbox" id="recon-attack"><span class="slider"></span></label><span class="tor-label">Attack Surface</span></div>
+          <div class="tor-toggle" title="Attacker mindset: prioritize targets, show exploit paths"><label class="tor-cb"><input type="checkbox" id="pentest-mode" onchange="togglePentestMode()"><span class="slider"></span></label><span class="tor-label">🎯 Pentest Mode</span></div>
           <button class="btn btn-p" onclick="startRecon()" style="background:var(--warn)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>Analyze</button>
           <button class="btn btn-d" onclick="abortScan()">Abort</button>
         </div>
@@ -391,7 +402,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
           <button class="ib" onclick="copyConsole()" title="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         </div>
       </div>
-      <div class="term" id="term"><div class="tl"><span class="tl-time">--:--:--</span><span class="tl-b sys">SYS</span><span class="tl-m">GhostTrace v5.0 by <span class="hl">Alsartawi</span> — <span class="muted">system ready</span></span></div></div>
+      <div class="term" id="term"><div class="tl"><span class="tl-time">--:--:--</span><span class="tl-b sys">SYS</span><span class="tl-m">GhostTrace v6.0 by <span class="hl">Alsartawi</span> — <span class="muted">system ready</span></span></div></div>
     </div>
     <div class="cli"><span class="cli-p">ghost $</span><input class="cli-i" id="cli-i" placeholder="theHarvester -d example.com -b crtsh" onkeydown="if(event.key==='Enter')runCLI()"><span class="cli-h">Enter ↵</span></div>
   </div>
@@ -427,7 +438,14 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
 
 <!-- HISTORY MODAL -->
 <div class="modal-overlay" id="hist-modal" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="modal"><h2>📜 Scan History</h2><div id="hist-list"></div></div>
+  <div class="modal"><h2>📜 Scan History</h2>
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap">
+      <button class="btn btn-d" onclick="exportAllHistory()" title="Export all history as JSON"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Backup</button>
+      <button class="btn btn-d" onclick="cleanupHistory()" title="Delete scans older than 30 days">🧹 Cleanup (30d)</button>
+      <button class="btn btn-d" onclick="showDBInfo()">📊 DB Info</button>
+    </div>
+    <div id="hist-list"></div>
+  </div>
 </div>
 
 <!-- SETTINGS MODAL -->
@@ -480,6 +498,14 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
 </footer>
 
 <script>
+const _csrfToken='{{ csrf_token }}';
+const _origFetch=window.fetch;
+window.fetch=function(url,opts={}){
+  if(opts.method&&['POST','DELETE','PUT','PATCH'].includes(opts.method.toUpperCase())){
+    opts.headers=opts.headers||{};
+    if(typeof opts.headers==='object'&&!(opts.headers instanceof Headers))opts.headers['X-CSRF-Token']=_csrfToken;
+  }
+  return _origFetch(url,opts)};
 // ═══════════ SOUND ═══════════
 let soundOn=false,aCtx=null;
 function toggleSound(){soundOn=!soundOn;const b=document.getElementById('sound-btn');if(soundOn){b.textContent='🔊';b.classList.add('on');if(!aCtx)aCtx=new(window.AudioContext||window.webkitAudioContext)();beep(800,.08)}else{b.textContent='🔇';b.classList.remove('on')}}
@@ -578,6 +604,57 @@ function connectSSE(url){return new Promise((res,rej)=>{evtSrc=new EventSource(u
     if(d.total>0){setSt('done');sndDone()}else{setSt('done')}
     evtSrc.close();evtSrc=null;res(d)});
   evtSrc.onerror=e=>{if(scanning){log('err','Connection lost');scanning=false;setSt('aborted')}evtSrc.close();evtSrc=null;rej(e)}})}
+
+function togglePentestMode(){
+  const on=document.getElementById('pentest-mode').checked;
+  if(on){
+    // Auto-enable ports + attack surface
+    document.getElementById('recon-ports').checked=true;
+    document.getElementById('recon-attack').checked=true;
+    log('info','<span class="hl">🎯 PENTEST MODE ENABLED</span> — ports + attack surface auto-enabled. Report will show TOP 3 targets + exploit paths.');
+  }else{
+    log('info','Pentest mode disabled');
+  }
+}
+
+// ═══════════ KEYBOARD SHORTCUTS ═══════════
+document.addEventListener('keydown',e=>{
+  // Don't trigger in input fields
+  if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA'||e.target.tagName==='SELECT')return;
+  const k=e.key.toLowerCase();const ctrl=e.ctrlKey||e.metaKey;
+
+  // Enter — start scan on active tab
+  if(e.key==='Enter'&&!ctrl){e.preventDefault();startScan()}
+  // Esc — abort scan
+  else if(e.key==='Escape'){if(scanning&&scanId){abortScan()}}
+  // Ctrl+K — focus filter
+  else if(ctrl&&k==='k'){e.preventDefault();document.getElementById('rf')?.focus()}
+  // Ctrl+/ — help
+  else if(ctrl&&k==='/'){e.preventDefault();showHelp()}
+  // Ctrl+H — history
+  else if(ctrl&&k==='h'){e.preventDefault();openHistory()}
+  // Ctrl+S — settings
+  else if(ctrl&&k===','){e.preventDefault();openSettings()}
+  // Ctrl+L — clear console
+  else if(ctrl&&k==='l'){e.preventDefault();clearConsole()}
+  // 1-9 — switch tabs
+  else if(/^[1-9]$/.test(k)){
+    const tabs=['auto','email','username','metadata','phone','subdomain','dns','ssl','dorks','recon'];
+    const idx=parseInt(k)-1;if(tabs[idx]){switchMod(tabs[idx]);const btn=document.querySelector(`[onclick*="switchMod('${tabs[idx]}'"]`);if(btn)btn.classList.add('active')}}
+});
+
+function showHelp(){
+  const html=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8">
+<b style="color:var(--accent)">KEYBOARD SHORTCUTS</b><br><br>
+<span class="hl">Enter</span> — Start scan<br>
+<span class="hl">Esc</span> — Abort scan<br>
+<span class="hl">Ctrl + K</span> — Focus filter<br>
+<span class="hl">Ctrl + /</span> — This help<br>
+<span class="hl">Ctrl + H</span> — History<br>
+<span class="hl">Ctrl + ,</span> — Settings<br>
+<span class="hl">Ctrl + L</span> — Clear console<br>
+<span class="hl">1-9</span> — Switch tabs</div>`;
+  log('info',html)}
 
 // ═══════════ AUTO DETECT ═══════════
 let autoTimer=null;
@@ -690,6 +767,15 @@ async function uploadFile(input){
   }catch(e){log('err','Upload failed: '+e.message)}
   input.value=''}
 
+// Drag & Drop
+(function(){const dz=document.getElementById('drop-zone');if(!dz)return;
+  ['dragenter','dragover'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--accent)';dz.style.background='var(--accent-d)'}));
+  ['dragleave','drop'].forEach(e=>dz.addEventListener(e,ev=>{ev.preventDefault();dz.style.borderColor='var(--border)';dz.style.background='transparent'}));
+  dz.addEventListener('drop',ev=>{
+    const file=ev.dataTransfer.files[0];if(!file)return;
+    const dt=new DataTransfer();dt.items.add(file);
+    const inp=document.getElementById('f-upload');inp.files=dt.files;uploadFile(inp)})})();
+
 // ═══════════ EXPORT ═══════════
 function toggleExportMenu(){if(!allRes.length){log('warn','Nothing to export');return}
   document.getElementById('export-menu').classList.toggle('open')}
@@ -738,7 +824,7 @@ function exportGraphPNG(){
   link.href=canvas.toDataURL('image/png');link.click()}
 
 // ═══════════ GRAPH — Shape drawing ═══════════
-const _nodeColors={email:'#3ecf8e',username:'#3ecf8e',metadata:'#b79af7',subdomain:'#38bdf8',source:'#e8a838',domain:'#f16060',phone:'#b79af7',whois:'#e8a838'};
+const _nodeColors={email:'#3ecf8e',username:'#3ecf8e',metadata:'#b79af7',subdomain:'#38bdf8',source:'#e8a838',domain:'#f16060',phone:'#b79af7',whois:'#e8a838',dns:'#06b6d4',ssl:'#a78bfa',dork:'#fbbf24'};
 
 function _drawShape(ctx,n,borderColor){
   const color=_nodeColors[n.type]||'#888';
@@ -752,7 +838,16 @@ function _drawShape(ctx,n,borderColor){
     case 'subdomain':ctx.beginPath();ctx.moveTo(x,y-r*1.2);ctx.lineTo(x+r*1.2,y+r*0.8);ctx.lineTo(x-r*1.2,y+r*0.8);ctx.closePath();ctx.fill();ctx.stroke();break;
     case 'metadata':case 'whois':
       ctx.beginPath();for(let i=0;i<6;i++){const a=Math.PI/3*i-Math.PI/6;ctx.lineTo(x+r*1.1*Math.cos(a),y+r*1.1*Math.sin(a))}ctx.closePath();ctx.fill();ctx.stroke();break;
-    default:ctx.globalAlpha=0.6;ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.globalAlpha=1;break;
+    case 'dns':
+      // Square for DNS records
+      ctx.beginPath();ctx.rect(x-r,y-r,r*2,r*2);ctx.fill();ctx.stroke();break;
+    case 'ssl':
+      // Shield/pentagon for SSL certs
+      ctx.beginPath();ctx.moveTo(x,y-r*1.2);ctx.lineTo(x+r*1.1,y-r*0.3);ctx.lineTo(x+r*0.7,y+r*1.1);ctx.lineTo(x-r*0.7,y+r*1.1);ctx.lineTo(x-r*1.1,y-r*0.3);ctx.closePath();ctx.fill();ctx.stroke();break;
+    case 'dork':
+      // Small circle for dorks
+      ctx.beginPath();ctx.arc(x,y,r*0.8,0,Math.PI*2);ctx.fill();ctx.stroke();break;
+    default:ctx.beginPath();ctx.arc(x,y,r,0,Math.PI*2);ctx.fill();ctx.stroke();break;
   }
 }
 
@@ -761,13 +856,17 @@ function _drawLegend(ctx,w,h){
   const items=[
     {shape:'circle',color:'#f16060',label:'Target Domain'},
     {shape:'triangle',color:'#38bdf8',label:'Subdomain'},
-    {shape:'circle',color:'#3ecf8e',label:'Email'},
+    {shape:'circle',color:'#3ecf8e',label:'Email / User'},
+    {shape:'square',color:'#06b6d4',label:'DNS Record'},
+    {shape:'pentagon',color:'#a78bfa',label:'SSL Cert'},
+    {shape:'hexagon',color:'#b79af7',label:'Metadata / Whois'},
+    {shape:'circle',color:'#fbbf24',label:'Google Dork'},
     {shape:'circle',color:'#e8a838',label:'Tool/Source'},
-    {shape:'diamond',color:'#b79af7',label:'Profile/Phone'},
+    {shape:'diamond',color:'#b79af7',label:'Phone'},
   ];
   const lx=12,ly=h-items.length*18-12;
   ctx.fillStyle='rgba(20,24,32,0.85)';ctx.strokeStyle='#252d3d';ctx.lineWidth=1;
-  ctx.beginPath();const rr=6,rw=140,rh=items.length*18+12,rx=lx,ry=ly-8;
+  ctx.beginPath();const rr=6,rw=160,rh=items.length*18+12,rx=lx,ry=ly-8;
   ctx.moveTo(rx+rr,ry);ctx.lineTo(rx+rw-rr,ry);ctx.arcTo(rx+rw,ry,rx+rw,ry+rr,rr);
   ctx.lineTo(rx+rw,ry+rh-rr);ctx.arcTo(rx+rw,ry+rh,rx+rw-rr,ry+rh,rr);
   ctx.lineTo(rx+rr,ry+rh);ctx.arcTo(rx,ry+rh,rx,ry+rh-rr,rr);
@@ -777,6 +876,9 @@ function _drawLegend(ctx,w,h){
     ctx.fillStyle=it.color;
     if(it.shape==='circle'){ctx.beginPath();ctx.arc(x,y,5,0,Math.PI*2);ctx.fill()}
     else if(it.shape==='triangle'){ctx.beginPath();ctx.moveTo(x,y-6);ctx.lineTo(x+6,y+4);ctx.lineTo(x-6,y+4);ctx.closePath();ctx.fill()}
+    else if(it.shape==='square'){ctx.beginPath();ctx.rect(x-5,y-5,10,10);ctx.fill()}
+    else if(it.shape==='pentagon'){ctx.beginPath();ctx.moveTo(x,y-6);ctx.lineTo(x+5,y-2);ctx.lineTo(x+3,y+5);ctx.lineTo(x-3,y+5);ctx.lineTo(x-5,y-2);ctx.closePath();ctx.fill()}
+    else if(it.shape==='hexagon'){ctx.beginPath();for(let j=0;j<6;j++){const a=Math.PI/3*j-Math.PI/6;ctx.lineTo(x+5*Math.cos(a),y+5*Math.sin(a))}ctx.closePath();ctx.fill()}
     else if(it.shape==='diamond'){ctx.beginPath();ctx.moveTo(x,y-6);ctx.lineTo(x+5,y);ctx.lineTo(x,y+6);ctx.lineTo(x-5,y);ctx.closePath();ctx.fill()}
     ctx.fillStyle='#8a96aa';ctx.font='10px JetBrains Mono';ctx.textAlign='left';
     ctx.fillText(it.label,x+12,y+4);
@@ -813,13 +915,21 @@ function drawGraph(){
 
   // Cluster home positions
   const homes={subdomain:{x:W*0.5,y:H*0.35},email:{x:W*0.5,y:H*0.7},source:{x:W*0.85,y:H/2},
-    username:{x:W*0.75,y:H*0.3},phone:{x:W*0.75,y:H*0.7},domain:{x:W*0.15,y:H/2}};
+    username:{x:W*0.75,y:H*0.3},phone:{x:W*0.75,y:H*0.7},domain:{x:W*0.15,y:H/2},
+    dns:{x:W*0.3,y:H*0.2},ssl:{x:W*0.3,y:H*0.8},dork:{x:W*0.9,y:H*0.85},
+    metadata:{x:W*0.6,y:H*0.85},whois:{x:W*0.15,y:H*0.85}};
 
   data.forEach(r=>{
     const home=homes[r.type]||{x:W/2,y:H/2};
     if(!nodeMap.has(r.value)){
-      nodeMap.set(r.value,{id:r.value,label:r.value.substring(0,28),type:r.type,
-        x:home.x+Math.random()*160-80,y:home.y+Math.random()*120-60,r:8,deg:0})}
+      // Clean label — strip "(IP)" from subdomains for readability
+      let cleanLabel = r.value;
+      if(r.type === 'subdomain' && cleanLabel.includes(' (')){
+        cleanLabel = cleanLabel.split(' (')[0];
+      }
+      if(cleanLabel.length > 24) cleanLabel = cleanLabel.substring(0, 22) + '…';
+      nodeMap.set(r.value,{id:r.value,label:cleanLabel,type:r.type,
+        x:home.x+Math.random()*200-100,y:home.y+Math.random()*180-90,r:8,deg:0})}
 
     // Source/tool node
     if(r.source&&!nodeMap.has(r.source)){
@@ -846,20 +956,37 @@ function drawGraph(){
   let frame=0;const maxFrames=200;
   function tick(){
     const decay=Math.max(0.01,1-frame/maxFrames);
-    // Cluster gravity — pull each type toward its home
+    // Cluster gravity — pull each type toward its home (stronger)
     graphNodes.forEach(n=>{
       if(n.fx!==undefined){n.x=n.fx;n.y=n.fy;return}
       const home=homes[n.type]||{x:W/2,y:H/2};
-      n.x+=(home.x-n.x)*0.008*decay;
-      n.y+=(home.y-n.y)*0.008*decay;
+      n.x+=(home.x-n.x)*0.015*decay;
+      n.y+=(home.y-n.y)*0.015*decay;
     });
-    // Repulsion
-    const rep=Math.min(300,1500/Math.max(graphNodes.length,1));
-    for(let i=0;i<graphNodes.length;i++){for(let j=i+1;j<graphNodes.length;j++){
-      const dx=graphNodes[j].x-graphNodes[i].x,dy=graphNodes[j].y-graphNodes[i].y;
-      const dist=Math.sqrt(dx*dx+dy*dy)||1;const force=Math.min(rep/dist,2.5)*decay;
-      if(!graphNodes[i].fx){graphNodes[i].x-=dx/dist*force;graphNodes[i].y-=dy/dist*force}
-      if(!graphNodes[j].fx){graphNodes[j].x+=dx/dist*force;graphNodes[j].y+=dy/dist*force}}}
+    // Repulsion via Quadtree (O(n log n) instead of O(n²))
+    // Stronger repulsion for better label readability
+    const rep=Math.min(800,4500/Math.max(graphNodes.length,1));
+    // Build quadtree
+    function QNode(x,y,w,h){this.x=x;this.y=y;this.w=w;this.h=h;this.body=null;this.mass=0;this.cx=0;this.cy=0;this.children=null}
+    QNode.prototype.insert=function(n){
+      if(this.w<1)return;
+      if(!this.body&&!this.children){this.body=n;this.mass=1;this.cx=n.x;this.cy=n.y;return}
+      if(!this.children){this.children=[];const hw=this.w/2,hh=this.h/2;
+        this.children.push(new QNode(this.x,this.y,hw,hh));this.children.push(new QNode(this.x+hw,this.y,hw,hh));
+        this.children.push(new QNode(this.x,this.y+hh,hw,hh));this.children.push(new QNode(this.x+hw,this.y+hh,hw,hh));
+        if(this.body){this._place(this.body);this.body=null}}
+      this._place(n);this.mass++;this.cx=(this.cx*(this.mass-1)+n.x)/this.mass;this.cy=(this.cy*(this.mass-1)+n.y)/this.mass};
+    QNode.prototype._place=function(n){const hw=this.w/2,hh=this.h/2;
+      const qi=n.x<this.x+hw?(n.y<this.y+hh?0:2):(n.y<this.y+hh?1:3);this.children[qi].insert(n)};
+    QNode.prototype.applyForce=function(n,theta){
+      if(this.mass===0)return;if(this.mass===1&&this.body===n)return;
+      const dx=this.cx-n.x,dy=this.cy-n.y,dist=Math.sqrt(dx*dx+dy*dy)||1;
+      if(this.children&&this.w/dist>theta){this.children.forEach(c=>c.applyForce(n,theta));return}
+      // Stronger force cap for better spacing
+      const force=Math.min(rep*this.mass/dist,4.0)*decay;
+      if(!n.fx){n.x-=dx/dist*force;n.y-=dy/dist*force}};
+    const qt=new QNode(0,0,W,H);graphNodes.forEach(n=>qt.insert(n));
+    graphNodes.forEach(n=>qt.applyForce(n,0.7));
     // Spring attraction (primary edges stronger)
     edges.forEach(e=>{const a=nodeMap.get(e.from),b=nodeMap.get(e.to);if(!a||!b)return;
       const dx=b.x-a.x,dy=b.y-a.y,dist=Math.sqrt(dx*dx+dy*dy)||1;
@@ -971,7 +1098,7 @@ async function openHistory(){
       const time=s.started_at?new Date(s.started_at).toLocaleString():'?';
       const dur=s.duration_sec?` · ${s.duration_sec.toFixed(1)}s`:'';
       div.innerHTML=`<div class="hist-info"><div class="hist-target">${s.target}</div><div class="hist-meta">${s.module} · ${s.tool} · ${time}${dur} · ${s.total_results} results</div></div>
-        <div class="hist-actions"><button class="hist-btn" onclick="loadHistory('${s.id}')">Load</button><button class="hist-btn" onclick="openNotes('${s.id}')" title="Notes">📝</button><button class="hist-btn" onclick="deleteScan('${s.id}',event)" title="Delete" style="border-color:var(--danger);color:var(--danger)">🗑️</button><span class="hist-badge ${s.status}">${s.status}</span></div>`;
+        <div class="hist-actions"><button class="hist-btn" onclick="toggleStar('${s.id}',event)" title="Star" style="color:${s.starred?'#fbbf24':'var(--text-3)'}">${s.starred?'★':'☆'}</button><button class="hist-btn" onclick="loadHistory('${s.id}')">Load</button><button class="hist-btn" onclick="openNotes('${s.id}')" title="Notes">📝</button><button class="hist-btn" onclick="deleteScan('${s.id}',event)" title="Delete" style="border-color:var(--danger);color:var(--danger)">🗑️</button><span class="hist-badge ${s.status}">${s.status}</span></div>`;
       list.appendChild(div)});
     document.getElementById('hist-modal').classList.add('open')}catch(e){log('err','Failed to load history')}}
 
@@ -982,8 +1109,19 @@ async function loadHistory(scanId){
     clearResults();
     results.forEach(r=>addResult(r.value,r.source,r.type,r.confidence));
     document.getElementById('hist-modal').classList.remove('open');
-    log('info',`Loaded <span class="hl">${results.length}</span> results from history`);sndDone()
+    // Update URL so user can share/bookmark
+    history.pushState({scanId},'',`?scan=${scanId}`);
+    log('info',`Loaded <span class="hl">${results.length}</span> results from history — URL updated for sharing`);sndDone()
   }catch(e){log('err','Failed to load results')}}
+
+// Load scan from URL on page load
+window.addEventListener('load',()=>{
+  const params=new URLSearchParams(window.location.search);
+  const scanId=params.get('scan');
+  if(scanId)setTimeout(()=>loadHistory(scanId),300)});
+window.addEventListener('popstate',e=>{
+  const scanId=e.state?.scanId;
+  if(scanId)loadHistory(scanId);else clearResults()});
 
 // ═══════════ NOTES ═══════════
 async function openNotes(scanId){
@@ -1007,6 +1145,40 @@ async function deleteScan(scanId,event){
     if(r.ok){log('info','Scan deleted');openHistory()}
     else{log('err','Delete failed')}
   }catch(e){log('err','Delete failed: '+e.message)}}
+
+async function toggleStar(scanId,event){
+  if(event)event.stopPropagation();
+  try{
+    const r=await fetch(`/api/history/${scanId}/star`,{method:'POST'});
+    const d=await r.json();
+    log('info',d.starred?'⭐ Starred':'Unstarred');openHistory()
+  }catch(e){log('err','Star failed: '+e.message)}}
+
+function exportAllHistory(){
+  log('info','Preparing full history backup...');
+  window.location.href='/api/history/export-all'}
+
+async function cleanupHistory(){
+  if(!confirm('Delete all scans older than 30 days? (Starred scans are preserved)'))return;
+  try{
+    const r=await fetch('/api/history/cleanup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({days:30})});
+    const d=await r.json();
+    log('info',`🧹 Cleanup: removed ${d.deleted} old scans. DB size now ${d.db_size_mb} MB`);
+    openHistory()
+  }catch(e){log('err','Cleanup failed: '+e.message)}}
+
+async function showDBInfo(){
+  try{
+    const r=await fetch('/api/history/db-info');
+    const d=await r.json();
+    const html=`<div style="font-family:var(--mono);font-size:11px;line-height:1.8">
+<b style="color:var(--accent)">DATABASE INFO</b><br><br>
+<span class="hl">Size:</span> ${d.size_mb} MB<br>
+<span class="hl">Total scans:</span> ${d.total_scans}<br>
+<span class="hl">⭐ Starred:</span> ${d.starred_scans}<br>
+<span class="hl">Total results:</span> ${d.total_results}</div>`;
+    log('info',html)
+  }catch(e){log('err','Failed to fetch DB info')}}
 
 // ═══════════ SETTINGS ═══════════
 async function openSettings(){
