@@ -3,6 +3,7 @@ API Routes — Flask Blueprints
 All endpoints organized by function
 """
 import csv, io, os, json
+from datetime import datetime
 from flask import Blueprint, request, jsonify, Response, stream_with_context, send_file
 from config import Config
 from core.scanner import run_tool_scan, run_cli_scan, abort_scan, sse
@@ -69,9 +70,8 @@ def scan_metadata():
 
 @scans_bp.route("/api/scan/phone")
 def scan_phone():
-    import re as _re
     phone = request.args.get("phone", "").strip()
-    if not phone or not _re.match(r'^\+?[0-9\s\-\(\)]{7,20}$', phone):
+    if not phone or not Validators._PHONE.match(phone):
         return _sse_error("Invalid phone number format")
     return _sse_response(run_tool_scan("phoneinfoga", phone, "phone"))
 
@@ -217,6 +217,8 @@ def abort(scan_id):
     return jsonify({"status": "not_found"}), 404
 
 # ═══════════════ FILE UPLOAD ═══════════════
+MAX_UPLOAD_SIZE = 16 * 1024 * 1024  # 16 MB
+
 @scans_bp.route("/api/upload", methods=["POST"])
 def upload_file():
     if 'file' not in request.files:
@@ -224,17 +226,25 @@ def upload_file():
     f = request.files['file']
     if not f.filename:
         return jsonify({"error": "Empty filename"}), 400
+    # Check size (seek to end, tell, seek back)
+    f.seek(0, 2)  # Seek to end
+    size = f.tell()
+    f.seek(0)  # Reset
+    if size > MAX_UPLOAD_SIZE:
+        return jsonify({"error": f"File too large (max {MAX_UPLOAD_SIZE // (1024*1024)} MB)"}), 413
+    if size == 0:
+        return jsonify({"error": "File is empty"}), 400
     # Sanitize filename
     import re as _re
     safe_name = _re.sub(r'[^a-zA-Z0-9._\-]', '_', f.filename)[:100]
-    if not safe_name:
+    if not safe_name or safe_name.startswith('.'):
         return jsonify({"error": "Invalid filename"}), 400
     upload_dir = os.path.join(Config.BASE_DIR, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
     filepath = os.path.join(upload_dir, safe_name)
     f.save(filepath)
-    log.info(f"File uploaded: {filepath}")
-    return jsonify({"filepath": filepath, "filename": safe_name})
+    log.info(f"File uploaded: {filepath} ({size} bytes)")
+    return jsonify({"filepath": filepath, "filename": safe_name, "size": size})
 
 # ═══════════════ CLI MODE ═══════════════
 @scans_bp.route("/api/cli")
@@ -308,7 +318,7 @@ def export():
     data = request.get_json()
     results = data.get("results", [])
     fmt = data.get("format", "json")
-    ts = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     if fmt == "csv":
         fp = os.path.join(Config.EXPORT_DIR, f"ghosttrace_{ts}.csv")
@@ -379,3 +389,82 @@ def settings():
     data = request.get_json()
     Config.save_api_keys(data.get("api_keys", {}))
     return jsonify({"status": "saved"})
+
+@system_bp.route("/api/entities")
+def entities_timeline():
+    """Get entity timeline — first_seen, last_seen, scan_count"""
+    from database.manager import Database
+    with Database.connection() as conn:
+        entities = conn.execute(
+            """SELECT value, type, first_seen, last_seen, scan_count
+               FROM entities ORDER BY scan_count DESC, last_seen DESC LIMIT 200""").fetchall()
+    return jsonify([dict(e) for e in entities])
+
+@history_bp.route("/api/history/<scan_id>/star", methods=["POST"])
+def star_scan(scan_id):
+    from database.manager import ScanDB
+    starred = ScanDB.toggle_star(scan_id)
+    return jsonify({"status": "ok", "starred": starred})
+
+@history_bp.route("/api/history/cleanup", methods=["POST"])
+def cleanup_history():
+    """Delete scans older than N days (default 30). Keeps starred scans."""
+    from database.manager import ScanDB
+    data = request.get_json() or {}
+    days = max(1, min(365, int(data.get("days", 30))))
+    deleted = ScanDB.cleanup_old(days=days, keep_starred=True)
+    ScanDB.vacuum()
+    log.info(f"Cleanup: removed {deleted} scans older than {days} days")
+    return jsonify({"status": "ok", "deleted": deleted, "db_size_mb": ScanDB.db_size_mb()})
+
+@history_bp.route("/api/history/db-info")
+def db_info():
+    """Get DB size and stats"""
+    from database.manager import ScanDB, Database
+    with Database.connection() as conn:
+        stats = conn.execute("SELECT COUNT(*) as total, SUM(CASE WHEN starred=1 THEN 1 ELSE 0 END) as starred FROM scans").fetchone()
+        results_count = conn.execute("SELECT COUNT(*) FROM results").fetchone()[0]
+    return jsonify({
+        "size_mb": ScanDB.db_size_mb(),
+        "total_scans": stats["total"],
+        "starred_scans": stats["starred"] or 0,
+        "total_results": results_count
+    })
+
+@history_bp.route("/api/history/bulk-delete", methods=["POST"])
+def bulk_delete():
+    """Delete multiple scans at once"""
+    from database.manager import ScanDB
+    data = request.get_json() or {}
+    ids = data.get("ids", [])
+    if not ids or not isinstance(ids, list):
+        return jsonify({"error": "Provide list of scan IDs"}), 400
+    deleted = 0
+    for sid in ids[:100]:  # Cap at 100 for safety
+        if isinstance(sid, str) and len(sid) < 100:
+            ScanDB.delete(sid)
+            deleted += 1
+    log.info(f"Bulk delete: {deleted} scans")
+    return jsonify({"status": "ok", "deleted": deleted})
+
+@history_bp.route("/api/history/export-all")
+def export_all_history():
+    """Export entire history as JSON — for backup"""
+    from database.manager import Database
+    with Database.connection() as conn:
+        scans = [dict(s) for s in conn.execute("SELECT * FROM scans ORDER BY started_at DESC").fetchall()]
+        results = [dict(r) for r in conn.execute("SELECT * FROM results").fetchall()]
+    backup = {
+        "version": Config.VERSION,
+        "exported_at": datetime.now().isoformat(),
+        "total_scans": len(scans),
+        "total_results": len(results),
+        "scans": scans,
+        "results": results
+    }
+    fn = f"ghosttrace_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    fp = os.path.join(Config.EXPORT_DIR, fn)
+    with open(fp, 'w') as f:
+        json.dump(backup, f, indent=2, default=str)
+    log.info(f"Exported full history: {len(scans)} scans, {len(results)} results → {fp}")
+    return send_file(fp, as_attachment=True, download_name=fn)

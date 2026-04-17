@@ -121,7 +121,9 @@ def recon_validate():
             port_results = PortScanner.bulk_scan(alive_hosts, max_workers=5)
             for h, r in port_results.items():
                 if r["ports"]:
-                    ports_str = ", ".join(f"{p['port']}/{p['service']}" for p in r["ports"])
+                    ports_str = ", ".join(
+                        f"{p['port']}/{p['service']}" + (f" ({p['banner'][:50]})" if p.get('banner') else "")
+                        for p in r["ports"])
                     yield sse("log", {"type": "found", "msg": f"<span class='hl'>{h}</span> — {ports_str}"})
 
         # ── Step 4: Attack Surface (optional) ──
