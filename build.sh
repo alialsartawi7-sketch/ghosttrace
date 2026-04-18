@@ -25,16 +25,18 @@ pyinstaller \
     --name GhostTrace \
     --onefile \
     --add-data "templates:templates" \
-    --add-data "static:static" \
     --hidden-import flask \
     --hidden-import sqlite3 \
     --hidden-import json \
+    --hidden-import bcrypt \
+    --hidden-import weasyprint \
     --collect-submodules tools \
     --collect-submodules core \
     --collect-submodules api \
     --collect-submodules database \
     --collect-submodules intelligence \
     --collect-submodules reports \
+    --collect-submodules recon \
     --collect-submodules utils \
     --noconfirm \
     --clean \
