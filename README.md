@@ -2,12 +2,12 @@
 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
-![Status Active](https://img.shields.io/badge/Status-Active-brightgreen)
+![Version 6.0](https://img.shields.io/badge/Version-6.0-ff6b35)
 ![Platform Linux](https://img.shields.io/badge/Platform-Linux%20(Kali%20recommended)-orange?logo=linux&logoColor=white)
 ![Tools 9](https://img.shields.io/badge/Tools-9%20Integrated-purple)
-![Routes 29](https://img.shields.io/badge/API%20Routes-29-blue)
+![Routes 36](https://img.shields.io/badge/API%20Routes-36-blue)
 ![Themes 12](https://img.shields.io/badge/Themes-12-ff6b35)
-![Tests](https://img.shields.io/badge/Tests-6%20Files-success)
+![Tests 9](https://img.shields.io/badge/Tests-9%20Files-success)
 
 ```
    ██████╗ ██╗  ██╗ ██████╗ ███████╗████████╗████████╗██████╗  █████╗  ██████╗███████╗
@@ -16,7 +16,7 @@
   ██║   ██║██╔══██║██║   ██║╚════██║   ██║      ██║   ██╔══██╗██╔══██║██║     ██╔══╝  
   ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║      ██║   ██║  ██║██║  ██║╚██████╗███████╗
    ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
-                                                                          v5.0 by Alsartawi
+                                                                          v6.0 by Alsartawi
 ```
 
 **OSINT made simple — from beginner to professional.**
@@ -28,21 +28,37 @@ GhostTrace is a modular OSINT intelligence platform that wraps 9 Linux tools int
 
 ---
 
+## 🆕 What's New in v6.0
+
+| Feature | Description |
+|---------|-------------|
+| ⭐ **Starred Scans** | Pin important scans to the top of History — they're protected from auto-cleanup |
+| ⌨️ **Keyboard Shortcuts** | Enter, Esc, Ctrl+K/H/L/,, 1-9, Ctrl+/ for power users |
+| 🔗 **Deep Links** | URL updates when loading scan — share `?scan=<id>` with colleagues |
+| 🗑️ **DB Cleanup** | Auto-remove scans older than N days (keeps starred), vacuum reclaims space |
+| 📊 **DB Info** | View database size, scan counts, starred counts via API |
+| 📦 **Bulk Operations** | Delete multiple scans at once via API |
+| 💾 **Export All History** | Full backup as JSON for archiving or transfer |
+| 📝 **Better Logging** | Scan lifecycle tracked in logs — start, complete, errors |
+| 🔒 **CSRF Fixes** | 3 security bugs fixed — null token rejection, proper flow, jsonify import |
+| 🐛 **AttackPath Crash Fix** | `KeyError: 'status'` on incomplete admin panel data |
+
+---
+
 ## ⚡ What Makes GhostTrace Different
 
 - 🔍 **9 integrated tools** — not just wrappers, full intelligence pipeline
-- 🛡️ **Active Recon** — DNS validation, HTTP probing, port scanning, attack surface detection
+- 🛡️ **Active Recon** — DNS validation, HTTP probing, port scanning with **banner grabbing**
 - 📊 **Risk Scoring Engine** — 0-100 dynamic scoring with actionable reasons
 - 🗺️ **Attack Path Generator** — 5 rules that map real exploitation paths
 - 🧠 **Smart Confidence** — scores based on result quality, not just source
-- 🔬 **Intelligent Metadata Analysis** — auto-detects WhatsApp/Telegram metadata stripping, classifies findings by intelligence value
-- 📄 **Professional Reports** — PDF with Key Findings, risk assessment, confidence distribution bars
-- 🌐 **Interactive Graph** — clustered force layout with shapes, legend, PNG export
-- 🔐 **Authentication** — bcrypt password protection with session management
+- 🔬 **Intelligent Metadata Analysis** — auto-detects WhatsApp/Telegram metadata stripping
+- 📄 **Professional Reports** — PDF with Key Findings, SVG charts, Entity Timeline, risk assessment
+- 🌐 **Interactive Graph** — Quadtree O(n log n) force layout, PNG export, fullscreen
+- 🔐 **Authentication + CSRF** — bcrypt password, session-based, CSRF tokens on all POST/DELETE
 - 🎨 **12 Premium Themes** — including Royal Gold and Midnight Silver
 - 🔄 **Cross-Scan Diff** — compare two scans to detect new exposures
-- 📝 **Scan Notes & History** — SQLite-backed with load, notes, delete
-- 📤 **File Upload** — drag-and-drop file upload for metadata analysis
+- 📤 **File Upload + Drag & Drop** — no need to type paths for metadata extraction
 
 ---
 
@@ -53,12 +69,12 @@ GhostTrace is a modular OSINT intelligence platform that wraps 9 Linux tools int
 | 1 | **theHarvester** | Email / Subs | Emails, subdomains, IPs from 13 free sources |
 | 2 | **Maigret** | Username | Social media profiles across 2500+ sites |
 | 3 | **Sherlock** | Username | Username search across 400+ sites |
-| 4 | **ExifTool** | Metadata | Hidden metadata in files — GPS, author, device, software (with smart classification) |
-| 5 | **PhoneInfoga** | Phone | Phone number carrier, country, format (search engine noise auto-filtered) |
+| 4 | **ExifTool** | Metadata | Hidden metadata — GPS, author, device (smart classification) |
+| 5 | **PhoneInfoga** | Phone | Phone number carrier, country (search engine noise filtered) |
 | 6 | **Whois** | Auto/CLI | Domain registration, registrar, expiry, nameservers |
-| 7 | **dig** | DNS | MX, TXT (SPF/DKIM/DMARC), NS, SOA, A, AAAA, CNAME records (each type queried separately) |
+| 7 | **dig** | DNS | MX, TXT (SPF/DKIM/DMARC), NS, SOA, A, AAAA, CNAME records |
 | 8 | **openssl** | SSL | Certificate SANs (hidden subdomains), issuer, expiry |
-| 9 | **Google Dorks** | Dorks | 28 targeted queries — clickable links that open Google directly |
+| 9 | **Google Dorks** | Dorks | 28 targeted clickable queries |
 
 ---
 
@@ -66,16 +82,31 @@ GhostTrace is a modular OSINT intelligence platform that wraps 9 Linux tools int
 
 | Module | Input | Tool Used | Example |
 |--------|-------|-----------|---------|
-| **Auto** | Anything | Auto-detects type, chains DNS+SSL for domains | `microsoft.com` → theHarvester → DNS → SSL |
+| **Auto** | Anything | Auto-detects, chains DNS+SSL for domains | `microsoft.com` → 3-phase pipeline |
 | **Email** | Domain | theHarvester | `example.com` |
 | **Username** | Username | Maigret / Sherlock | `johndoe` |
-| **Metadata** | File path or Upload | ExifTool (smart classification) | Upload button or `/home/kali/photo.jpg` |
+| **Metadata** | File path or Upload (drag&drop) | ExifTool (smart classification) | Drag file or browse |
 | **Phone** | Phone number | PhoneInfoga (noise-filtered) | `+1234567890` |
 | **Subdomain** | Domain | theHarvester | `google.com` |
-| **DNS** | Domain | dig (7 record types) | `example.com` → MX, TXT, NS, SOA, A, AAAA, CNAME |
-| **SSL** | Domain | openssl | `example.com` → SANs, issuer, expiry |
-| **Dorks** | Domain | Generator | `example.com` → 28 clickable Google dork queries |
-| **Recon** | Domain | Built-in | DNS resolve → HTTP probe → Ports → Risk |
+| **DNS** | Domain | dig (7 record types) | `example.com` |
+| **SSL** | Domain | openssl | `example.com` |
+| **Dorks** | Domain | Generator (clickable) | `example.com` |
+| **Recon** | Domain | Built-in | Full pipeline with banner grabbing |
+
+---
+
+## ⌨️ Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | Start scan |
+| `Esc` | Abort scan |
+| `Ctrl + K` | Focus filter |
+| `Ctrl + /` | Show help |
+| `Ctrl + H` | Open History |
+| `Ctrl + ,` | Settings |
+| `Ctrl + L` | Clear console |
+| `1` – `9` | Switch tabs |
 
 ---
 
@@ -86,15 +117,13 @@ After passive OSINT, GhostTrace validates and enriches results:
 ```
 📡 DNS Resolution     → Remove dead domains, validate alive hosts
 🌐 HTTP Probing       → Status codes, technology detection, security headers
-🔌 Port Scanning      → Top 25 common ports (SSH, RDP, MySQL, Redis...)
+🔌 Port Scanning      → Top 25 ports + banner grabbing (OpenSSH, Apache, nginx...)
 🎯 Attack Surface     → Admin panels, login pages, API endpoints
 📊 Risk Scoring       → 0-100 dynamic score with explanations
 🗺️ Attack Paths       → 5 rules: Brute Force, Admin Panel, API, Legacy, Chained
 ```
 
 ### Risk Scoring
-
-Every host gets a dynamic risk score based on:
 
 | Factor | Points | Example |
 |--------|--------|---------|
@@ -119,22 +148,20 @@ Every host gets a dynamic risk score based on:
 
 ## 🧠 Smart Confidence System
 
-Unlike tools that give static confidence, GhostTrace scores each result individually:
-
 | Result | Old Score | Smart Score | Why |
 |--------|-----------|-------------|-----|
-| `Personal email pattern (firstname.lastname)` | 72% | **90%** | Personal email (firstname.lastname) |
-| `Generic service alias` | 72% | **60%** | Generic alias |
-| `Vulnerable admin subdomain detected` | 70% | **90%** | Admin subdomain + DNS resolved |
-| `No IP confirmation on staging environment` | 70% | **60%** | No IP confirmation |
-| `Loopback address - Filtered noise` | 70% | **15%** | Private IP — noise |
-| `Broad wildcard entry` | 70% | **20%** | Wildcard entry |
+| `m.ezzat@zu.edu.eg` | 72% | **90%** | Personal email (firstname.lastname) |
+| `info@zu.edu.eg` | 72% | **60%** | Generic alias |
+| `admin.zu.edu.eg (1.2.3.4)` | 70% | **90%** | Admin subdomain + DNS resolved |
+| `arts.zu.edu.eg` | 70% | **60%** | No IP confirmation |
+| `0.0.0.0` | 70% | **15%** | Private IP — noise |
+| `*.zu.edu.eg` | 70% | **20%** | Wildcard entry |
 
 ---
 
 ## 🔬 Smart Metadata Analysis
 
-ExifTool results are classified by intelligence value — not dumped as raw data:
+ExifTool results classified by intelligence value:
 
 | Classification | Confidence | Examples |
 |---------------|-----------|----------|
@@ -145,7 +172,7 @@ ExifTool results are classified by intelligence value — not dumped as raw data
 | 📅 **DATE** | 85% | Original capture date/time |
 | 📄 **BASIC** | 40% | File size, dimensions, type |
 
-**Auto-detects metadata stripping** from: WhatsApp, Telegram, Signal, Facebook, Twitter, Screenshots — and tells you explicitly instead of showing empty results.
+**Auto-detects metadata stripping** from: WhatsApp, Telegram, Signal, Facebook, Twitter, Screenshots.
 
 ---
 
@@ -154,7 +181,8 @@ ExifTool results are classified by intelligence value — not dumped as raw data
 Reports include **all 9 result types** with:
 
 - 🎯 **Key Findings** — Top 10 highest-priority results (confidence ≥50% only)
-- 📊 Stat cards (dynamic — only show categories with results)
+- 📊 **SVG Charts** — Bar chart of results by type
+- 🕐 **Entity Timeline** — Recurring findings with first_seen/last_seen/count
 - 📈 Confidence distribution bar (high/medium/low)
 - 📝 Executive summary (auto-generated)
 - 🛡️ Risk Assessment section (if recon was performed)
@@ -163,37 +191,43 @@ Reports include **all 9 result types** with:
 
 ---
 
-## ✨ Additional Features
+## ✨ Features
 
 | Feature | Description |
 |---------|-------------|
 | 🔐 **Authentication** | bcrypt password with `--setup`, session-based |
+| 🔒 **CSRF Protection** | Token per session, auto-injected on all POST/DELETE |
 | 🎨 **12 Premium Themes** | Ghost Blue, Matrix, Cyberpunk, Ocean, Sunset, Toxic, Blood, Stealth, Arctic, Light, **Royal Gold**, **Midnight Silver** |
 | 🌙 **Dark/Light Toggle** | Quick toggle button in navbar |
-| 📤 **File Upload** | Upload button in Metadata tab — no need to type file paths |
+| ⭐ **Starred Scans** | Pin important scans — protected from auto-cleanup |
+| 🔗 **Deep Links** | URL updates on scan load — shareable links |
+| 📤 **File Upload + Drag & Drop** | Drop files into metadata tab directly |
 | 📋 **Copy Button** | Hover any result → click ⎘ to copy |
 | 📝 **Scan Notes** | Add notes to any scan from History |
-| 🗑️ **Delete Scans** | Remove old scans from History with one click |
+| 🗑️ **Delete / Bulk Delete** | Remove old scans one-by-one or in batch |
+| 🧹 **Auto Cleanup** | Remove scans older than N days (keeps starred) |
+| 💾 **Full DB Backup** | Export entire history as JSON |
 | 🔄 **Cross-Scan Diff** | Compare two scans: added/removed/unchanged |
-| 🌐 **Interactive Graph** | Clustered force layout, shapes per type, legend, click highlight, PNG export |
-| ⛶ **Fullscreen Graph** | Dedicated fullscreen mode with proper resizing |
+| 🌐 **Interactive Graph** | Quadtree O(n log n), clustering, shapes, PNG export |
+| ⛶ **Fullscreen Graph** | Dedicated fullscreen mode |
 | 🔎 **Result Search** | Filter results in real-time |
-| 💾 **Scan History** | SQLite-backed — load, search, delete past scans |
+| 💾 **Scan History** | SQLite-backed with starred ordering |
 | 🔌 **Tor Integration** | One toggle — routes traffic through Tor |
 | 📦 **Export** | JSON, CSV, TXT, HTML, PDF |
 | 🖥️ **CLI Mode** | Direct commands in the terminal bar |
+| ⌨️ **Keyboard Shortcuts** | Power user workflow |
 
 ---
 
 ## 🧪 Quality Assurance
 
-GhostTrace is continuously tested and verified:
-
 | Category | Details |
 |----------|---------|
-| ✅ **6 Test Files** | validators, harvester, correlator, risk_engine, recon, new_tools |
+| ✅ **9 Test Files** | validators, harvester, correlator, risk_engine, recon, new_tools, database, report, integration |
 | ✅ **Linting** | flake8 checks for syntax errors and undefined names |
-| ✅ **API Documentation** | Full reference at [`docs/API.md`](docs/API.md) — all 29 endpoints, schemas, cURL examples |
+| ✅ **API Documentation** | Full reference at [`docs/API.md`](docs/API.md) — all 36 endpoints |
+| ✅ **Contributing Guide** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to add tools, run tests, code style |
+| ✅ **Type Hints** | Key modules typed: base, risk_engine, correlator, validators |
 
 Run tests locally:
 ```bash
@@ -205,7 +239,7 @@ pytest tests/ -v
 ## Architecture
 
 ```
-                           GhostTrace v5.0
+                           GhostTrace v6.0
 
  ┌──────────┐    ┌────────────┐    ┌──────────────┐    ┌──────────┐
  │  Web UI   │───→│ Validators  │───→│ Tool Adapters │───→│ Execution│
@@ -218,7 +252,7 @@ pytest tests/ -v
        │                │
        │          ┌─────↓──────┐    ┌──────────────┐
        │          │ Correlator  │───→│   SQLite DB   │
-       │          │ + Scorer    │    │  WAL mode     │
+       │          │ + Scorer    │    │  WAL + starred│
        │          └─────┬──────┘    └──────────────┘
        │                │
        │          ┌─────↓──────┐    ┌──────────────┐
@@ -226,60 +260,6 @@ pytest tests/ -v
        │          │ DNS+HTTP+   │    │ Score 0-100   │
        │          │ Ports+Attack│    │ Attack Paths  │
        │          └────────────┘    └──────────────┘
-```
-
-**Project Structure (35+ files):**
-
-```
-ghosttrace/
-├── docs/
-│   └── API.md                  # Full REST API documentation
-├── app.py                      # Flask entry + authentication
-├── config.py                   # Centralized config
-├── core/
-│   ├── engine.py               # Sandboxed subprocess execution
-│   ├── scanner.py              # Scan orchestrator + CLI + abort
-│   └── differ.py               # Cross-scan diff comparison
-├── tools/
-│   ├── base.py                 # ToolAdapter abstract interface (with get_env)
-│   ├── harvester.py            # theHarvester (smart confidence, API key env injection)
-│   ├── sherlock_tool.py        # Sherlock adapter
-│   ├── maigret_tool.py         # Maigret (false positive filter, Tor)
-│   ├── exiftool.py             # ExifTool (smart classification: GPS/Author/Device/Basic)
-│   ├── phoneinfoga_tool.py     # PhoneInfoga (search engine URL noise filtered)
-│   ├── whois_tool.py           # Whois lookup adapter
-│   ├── dns_records.py          # DNS records via dig (7 types queried separately)
-│   ├── ssl_cert.py             # SSL certificate SANs extraction
-│   ├── google_dorks.py         # Google dork generator (28 clickable queries)
-│   └── registry.py             # Plugin registry (9 tools)
-├── api/
-│   ├── routes.py               # 4 Blueprints, 29+ endpoints (incl. upload)
-│   └── recon_routes.py         # Active recon pipeline
-├── database/
-│   └── manager.py              # SQLite WAL + migrations + notes
-├── intelligence/
-│   └── correlator.py           # Entity linking + smart scoring
-├── recon/
-│   ├── __init__.py             # DNS, HTTP, Port, AttackSurface, DataQuality
-│   └── risk_engine.py          # RiskScorer + AttackPathGenerator
-├── reports/
-│   └── html_report.py          # Professional reports (9 types + risk + key findings)
-├── utils/
-│   ├── validators.py           # Whitelist per-tool regex + upload path whitelisting
-│   ├── security.py             # Rate limiter + output sanitizer
-│   └── logger.py               # Rotating file logger
-├── templates/
-│   └── index.html              # Single-page dashboard (12 themes)
-├── tests/                      # 6 test files
-│   ├── test_validators.py
-│   ├── test_harvester.py
-│   ├── test_correlator.py
-│   ├── test_risk_engine.py
-│   ├── test_recon.py
-│   └── test_new_tools.py
-├── build.sh
-├── requirements.txt
-└── LICENSE
 ```
 
 ---
@@ -397,6 +377,7 @@ All themes — try it 😉
 | Layer | Implementation |
 |-------|---------------|
 | Authentication | bcrypt password hashing, session-based auth |
+| **CSRF Protection** | Token per session, validated on all POST/DELETE |
 | Input validation | Per-field regex: domain, email, username, filepath, phone |
 | CLI validation | **Whitelist** regex per tool (not a blacklist) |
 | Path traversal | Blocks `..`, `/etc/shadow`, `/root`, `.ssh` (uploads dir whitelisted) |
@@ -414,7 +395,7 @@ All themes — try it 😉
 - Google Dorks generates queries only — user must search manually
 - PhoneInfoga requires separate installation from GitHub releases
 - PDF requires `weasyprint` (recommended) or `wkhtmltopdf`
-- WhatsApp/Telegram/Signal strip metadata from shared images — this is by design, not a tool limitation
+- WhatsApp/Telegram/Signal strip metadata from shared images — by design
 - Linux only — Windows not supported
 
 ---
