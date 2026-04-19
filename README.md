@@ -150,12 +150,12 @@ After passive OSINT, GhostTrace validates and enriches results:
 
 | Result | Old Score | Smart Score | Why |
 |--------|-----------|-------------|-----|
-| `m.ezzat@zu.edu.eg` | 72% | **90%** | Personal email (firstname.lastname) |
-| `info@zu.edu.eg` | 72% | **60%** | Generic alias |
-| `admin.zu.edu.eg (1.2.3.4)` | 70% | **90%** | Admin subdomain + DNS resolved |
-| `arts.zu.edu.eg` | 70% | **60%** | No IP confirmation |
+| `john.doe@example.com` | 72% | **90%** | Personal email (firstname.lastname) |
+| `info@example.com` | 72% | **60%** | Generic alias |
+| `admin.example.com` | 70% | **90%** | Admin subdomain + DNS resolved |
+| `blog.example.com` | 70% | **60%** | No IP confirmation |
 | `0.0.0.0` | 70% | **15%** | Private IP — noise |
-| `*.zu.edu.eg` | 70% | **20%** | Wildcard entry |
+| `*.example.com` | 70% | **20%** | Wildcard entry |
 
 ---
 
