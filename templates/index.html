@@ -4,6 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GhostTrace v6.0 — by Alsartawi</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
+<link rel="shortcut icon" href="/static/favicon.ico">
+<meta name="theme-color" content="#4f8ef7">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#0a0e16;--surface:#111827;--raised:#1a2238;--border:#243050;--border-s:#2e3d5a;
@@ -54,8 +59,8 @@ body{background:var(--bg);color:var(--text-1);font-family:var(--sans);height:100
 /* NAV */
 nav{height:52px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:18px;flex-shrink:0}
 .brand{display:flex;align-items:center;gap:8px}
-.brand-icon{width:26px;height:26px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;animation:glow 3s ease-in-out infinite}
-.brand-icon svg{width:14px;height:14px}
+.brand-icon{width:32px;height:32px;border-radius:7px;overflow:hidden;flex-shrink:0;animation:glow 3s ease-in-out infinite}
+.brand-icon img{width:100%;height:100%;object-fit:cover;display:block}
 .brand-name{font-size:14px;font-weight:600;color:var(--text-1)}.brand-ver{font-size:9px;color:var(--text-3);font-family:var(--mono)}
 .nav-tabs{display:flex;gap:2px;align-items:center}
 .ntab{display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:500;color:var(--text-2);transition:all .15s;border:1px solid transparent}
@@ -246,7 +251,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
 <body>
 <nav>
   <div class="brand">
-    <div class="brand-icon"><svg viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="5" stroke="#fff" stroke-width="1.5"/><circle cx="8" cy="8" r="2" fill="#fff"/><line x1="1" y1="8" x2="3.5" y2="8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><line x1="12.5" y1="8" x2="15" y2="8" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="1" x2="8" y2="3.5" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/><line x1="8" y1="12.5" x2="8" y2="15" stroke="#fff" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+    <div class="brand-icon"><img src="/static/favicon-48.png" alt="GhostTrace"></div>
     <div><div class="brand-name">GhostTrace</div><div class="brand-ver">v6.0 by Alsartawi</div></div>
   </div>
   <div class="nav-tabs">
