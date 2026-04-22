@@ -281,17 +281,25 @@ pip install -r requirements.txt --break-system-packages
 ```bash
 # Required
 sudo apt update
-sudo apt install -y pkg-config libcairo2-dev python3-dev build-essential
-sudo apt install theharvester exiftool -y
-pip install sherlock-project maigret --break-system-packages
+sudo apt install -y pipx dnsutils whois libimage-exiftool-perl \
+  openssl git libcairo2-dev pkg-config python3-dev build-essential
+
+# pipx PATH
+pipx ensurepath
+
+# OSINT tools
+pipx install maigret sherlock-project
 
 # PhoneInfoga
 wget https://github.com/sundowndev/phoneinfoga/releases/latest/download/phoneinfoga_Linux_x86_64.tar.gz -O /tmp/phoneinfoga.tar.gz
 tar xzf /tmp/phoneinfoga.tar.gz -C /tmp/
 sudo mv /tmp/phoneinfoga /usr/local/bin/
 
-# Optional — for PDF reports
-pip install weasyprint --break-system-packages
+# Clone and run
+git clone https://github.com/alialsartawi7-sketch/ghosttrace.git
+cd ghosttrace
+pip install -r requirements.txt --break-system-packages
+python3 app.py
 
 # Optional — for Tor routing
 sudo apt install tor -y
