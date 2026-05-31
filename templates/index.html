@@ -569,11 +569,11 @@ function addResult(val,src,type,confidence){
   if(type==='username'){usrs++;document.getElementById('f-us').textContent=usrs}
   if(type==='metadata'){metas++;document.getElementById('f-me').textContent=metas}
   if(type==='subdomain'){subs++;document.getElementById('f-sb').textContent=subs}
-  if(['dns','ssl','whois','phone','dork'].includes(type)){others++;document.getElementById('f-ot').textContent=others}
+  if(['dns','ssl','whois','phone','dork','ip'].includes(type)){others++;document.getElementById('f-ot').textContent=others}
   document.getElementById('s-found').textContent=total;document.getElementById('nav-total').textContent=total;
   const list=document.getElementById('rl');document.getElementById('empty-st')?.remove();
-  const icons={email:'@',username:'U',metadata:'M',subdomain:'S',dns:'D',ssl:'🔒',whois:'W',phone:'📱',dork:'🔍'};
-  const cls={email:'ri-e',username:'ri-u',metadata:'ri-m',subdomain:'ri-s',dns:'ri-e',ssl:'ri-m',whois:'ri-u',phone:'ri-m',dork:'ri-s'};
+  const icons={email:'@',username:'U',metadata:'M',subdomain:'S',ip:'I',dns:'D',ssl:'🔒',whois:'W',phone:'📱',dork:'🔍'};
+  const cls={email:'ri-e',username:'ri-u',metadata:'ri-m',subdomain:'ri-s',ip:'ri-s',dns:'ri-e',ssl:'ri-m',whois:'ri-u',phone:'ri-m',dork:'ri-s'};
   const item=document.createElement('div');item.className='ri';
   const confPct=Math.round(confidence*100);const confCls=confPct>=80?'val':confPct>=50?'hl':'muted';
   // Dork results: make the value a clickable Google link

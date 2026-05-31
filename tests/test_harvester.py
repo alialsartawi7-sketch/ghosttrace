@@ -78,6 +78,16 @@ class TestParseLine:
         for ip in ("1.1.1.1", "2.2.2.2", "3.3.3.3"):
             assert ip in result[0]["extra"]
 
+    def test_bare_ip_classified_as_ip(self, adapter):
+        """A bare IP with no hostname is type 'ip', not 'subdomain'."""
+        ctx = {"section": "hosts"}
+        adapter.parse_line("8.8.8.8", ctx)
+        adapter.parse_line("real.example.com:9.9.9.9", ctx)
+        results = adapter.finalize(ctx)
+        by_val = {r["value"]: r for r in results}
+        assert by_val["8.8.8.8"]["type"] == "ip"
+        assert by_val["real.example.com"]["type"] == "subdomain"
+
     def test_empty_line(self, adapter):
         ctx = {}
         assert adapter.parse_line("", ctx) == []

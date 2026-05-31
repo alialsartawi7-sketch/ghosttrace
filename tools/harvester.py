@@ -95,17 +95,21 @@ class HarvesterAdapter(ToolAdapter):
     def finalize(self, context):
         """Emit one subdomain result per host, with all resolved IPs aggregated
         into `extra`. The stored value is the clean hostname (no inline IP), so
-        the DB, entity timeline, and graph stay free of duplicate rows."""
+        the DB, entity timeline, and graph stay free of duplicate rows. Bare IPs
+        (no hostname) are classified as type 'ip', not 'subdomain'."""
+        import re
+        ip_re = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
         results = []
         host_map = context.get("_host_map", {})
         for host, ips in host_map.items():
+            rtype = "ip" if ip_re.match(host) else "subdomain"
             # Score using the legacy "host (ip)" form so existing confidence
             # heuristics (resolved-IP bonus, private-IP penalty) still apply.
             conf_input = f"{host} ({ips[0]})" if ips else host
             results.append({
                 "value": host,
                 "source": self.name,
-                "type": "subdomain",
+                "type": rtype,
                 "confidence": self.get_confidence(conf_input),
                 "extra": ", ".join(ips),
             })

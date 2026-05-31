@@ -11,6 +11,7 @@ RESULT_TYPES = {
     "email":     {"label": "Emails",          "icon": "📧", "color": "#3ecf8e", "tag": "te"},
     "username":  {"label": "Profiles",        "icon": "👤", "color": "#3ecf8e", "tag": "tu"},
     "subdomain": {"label": "Subdomains",      "icon": "🌐", "color": "#38bdf8", "tag": "ts"},
+    "ip":        {"label": "IP Addresses",    "icon": "🖥️", "color": "#38bdf8", "tag": "ts"},
     "metadata":  {"label": "Metadata",        "icon": "📎", "color": "#b79af7", "tag": "tm"},
     "dns":       {"label": "DNS Records",     "icon": "📡", "color": "#4f8ef7", "tag": "td"},
     "ssl":       {"label": "SSL Certificate", "icon": "🔒", "color": "#e8a838", "tag": "tl"},
@@ -336,13 +337,25 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
             html += '</tbody></table></div>'
 
         # ═══════════════ ENTITY TIMELINE ═══════════════
+        # Only show entities that appear in THIS scan — otherwise the timeline
+        # bleeds in recurring hosts from unrelated past scans (different targets).
+        scan_keys = set()
+        for r in results:
+            v = (r.get("value", "") or "").strip()
+            if not v:
+                continue
+            scan_keys.add(v)
+            host = v.split(" (")[0].split("→")[0].strip()  # normalize host/IP form
+            if host:
+                scan_keys.add(host)
         try:
             from database.manager import Database
             with Database.connection() as conn:
-                recurring = conn.execute(
+                rows = conn.execute(
                     """SELECT value, type, first_seen, last_seen, scan_count
                        FROM entities WHERE scan_count > 1
-                       ORDER BY scan_count DESC LIMIT 15""").fetchall()
+                       ORDER BY scan_count DESC LIMIT 500""").fetchall()
+            recurring = [e for e in rows if e["value"] in scan_keys][:15]
             if recurring:
                 html += '''
 <div class="sec">

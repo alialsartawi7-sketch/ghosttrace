@@ -15,8 +15,8 @@ def setup_dirs(tmp_path):
 
 class TestReportTypes:
     def test_all_9_types_supported(self):
-        assert len(RESULT_TYPES) == 9
-        for t in ["email", "username", "subdomain", "metadata", "dns", "ssl", "whois", "phone", "dork"]:
+        assert len(RESULT_TYPES) == 10
+        for t in ["email", "username", "subdomain", "ip", "metadata", "dns", "ssl", "whois", "phone", "dork"]:
             assert t in RESULT_TYPES
 
     def test_each_type_has_required_fields(self):
