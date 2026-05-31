@@ -150,6 +150,29 @@ def scan_dns():
                                 yield sse("log", {"type": "found", "msg": f"[{rtype}] {r['value'].split('] ')[-1]}"})
             except Exception as e:
                 yield sse("log", {"type": "warn", "msg": f"{rtype} query failed: {str(e)[:60]}"})
+
+        # ── DMARC (lives at _dmarc.<domain>) — complements SPF/DKIM detection ──
+        yield sse("progress", {"pct": 92, "label": "Checking DMARC policy"})
+        try:
+            dproc = subprocess.run(
+                ["dig", f"_dmarc.{domain}", "TXT", "+short", "+time=5"],
+                capture_output=True, text=True, timeout=15)
+            dmarc_txt = " ".join(l.strip().strip('"') for l in dproc.stdout.splitlines() if l.strip())
+            if "v=dmarc1" in dmarc_txt.lower():
+                val = f"[DMARC] {dmarc_txt[:200]}"
+                if ResultDB.add(scan_id, val, "DNSRecords", "dns", 0.9, "DMARC"):
+                    count += 1
+                    yield sse("result", {"value": val, "source": "DNSRecords", "type": "dns", "confidence": 0.9, "extra": "DMARC"})
+                    yield sse("log", {"type": "found", "msg": f"<span class='hl'>DMARC Record</span> → {dmarc_txt[:80]}"})
+            else:
+                note = "No DMARC record — domain is vulnerable to email spoofing/phishing"
+                if ResultDB.add(scan_id, note, "DNSRecords", "dns", 0.75, "DMARC-Missing"):
+                    count += 1
+                    yield sse("result", {"value": note, "source": "DNSRecords", "type": "dns", "confidence": 0.75, "extra": "DMARC-Missing"})
+                    yield sse("log", {"type": "warn", "msg": "<span class='hl'>DMARC missing</span> — email spoofing risk"})
+        except Exception as e:
+            yield sse("log", {"type": "warn", "msg": f"DMARC check failed: {str(e)[:60]}"})
+
         ScanDB.finish(scan_id, "complete", count)
         yield sse("progress", {"pct": 100, "label": "Complete"})
         yield sse("log", {"type": "info", "msg": f"DNS analysis complete — {count} records found"})

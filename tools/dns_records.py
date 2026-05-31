@@ -45,6 +45,20 @@ class DNSRecordsAdapter(ToolAdapter):
         }
 
         conf = conf_map.get(rtype, 0.7)
+
+        # TXT records are not all equal: SPF/DKIM/DMARC are security-relevant,
+        # but domain-verification tokens (Zoom, Google, MS, etc.) are noise and
+        # should not surface as high-confidence findings.
+        if rtype == "TXT":
+            vl = value.lower()
+            if any(k in vl for k in ("v=spf1", "v=dmarc1", "v=dkim1", "_domainkey")):
+                conf = 0.9
+            elif any(k in vl for k in ("verify", "verification", "-site-verification",
+                                       "domain-verification", "=")):
+                conf = 0.5   # verification token — low intelligence value
+            else:
+                conf = 0.7
+
         display = f"[{rtype}] {value}"
 
         results.append({
@@ -71,10 +85,11 @@ class DNSRecordsAdapter(ToolAdapter):
         elif rtype == "NS":
             context["_log"] = ("found", f"<span class='hl'>Nameserver</span> → {value}")
         elif rtype == "SOA":
-            # SOA often contains admin email
+            # SOA RNAME encodes the admin email: first unescaped dot -> @
             soa_parts = value.split()
             if len(soa_parts) >= 2:
-                admin = soa_parts[1].replace(".", "@", 1)
+                rname = soa_parts[1].rstrip(".")
+                admin = rname.replace(".", "@", 1) if "." in rname else rname
                 context["_log"] = ("found", f"<span class='hl'>SOA Admin</span> → {admin}")
 
         return results

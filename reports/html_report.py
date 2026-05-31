@@ -22,6 +22,45 @@ RESULT_TYPES = {
 
 class ReportGenerator:
     @staticmethod
+    def _group_subdomains(items):
+        """Collapse subdomain results that share a hostname into a single row.
+
+        theHarvester emits one result per host:ip pair, so a host resolving to
+        N IPs produced N rows (inflating the count). This groups them: one row
+        per hostname, with all resolved IPs aggregated. Bare-IP results are
+        kept as-is. The highest confidence in a group is used."""
+        import re as _re
+        ip_re = _re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
+        groups, order = {}, []
+        for r in items:
+            val = (r.get("value", "") or "").strip()
+            host, ip = val, None
+            if " (" in val and val.endswith(")"):
+                host = val.split(" (")[0].strip()
+                ip = val[val.index(" (") + 2:-1].strip().rstrip(".")
+            key = host
+            if key not in groups:
+                groups[key] = {"ips": [], "rep": r, "conf": r.get("confidence", 0)}
+                order.append(key)
+            if ip and ip != key and ip not in groups[key]["ips"]:
+                groups[key]["ips"].append(ip)
+            if r.get("confidence", 0) > groups[key]["conf"]:
+                groups[key]["conf"] = r.get("confidence", 0)
+                groups[key]["rep"] = r
+        out = []
+        for key in order:
+            g = groups[key]
+            rep = dict(g["rep"])
+            if g["ips"] and not ip_re.match(key):
+                shown = ", ".join(g["ips"][:6]) + ("  …" if len(g["ips"]) > 6 else "")
+                rep["value"] = f"{key}  →  {shown}"
+            else:
+                rep["value"] = key
+            rep["confidence"] = g["conf"]
+            out.append(rep)
+        return out
+
+    @staticmethod
     def generate_html(results, target, module, recon_data=None):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -30,20 +69,23 @@ class ReportGenerator:
 
         # Categorize ALL results
         cats = {t: [] for t in RESULT_TYPES}
-        high_conf = 0
-        med_conf = 0
         for r in results:
             t = r.get("type", "")
             if t in cats:
                 cats[t].append(r)
-            if r.get("confidence", 0) >= 0.8:
-                high_conf += 1
-            elif r.get("confidence", 0) >= 0.5:
-                med_conf += 1
+
+        # Collapse multi-IP subdomain duplicates into one row per hostname
+        if cats.get("subdomain"):
+            cats["subdomain"] = ReportGenerator._group_subdomains(cats["subdomain"])
+
+        # Recompute counts from the (grouped) categories so cards/summary are accurate
+        all_items = [r for items in cats.values() for r in items]
+        high_conf = sum(1 for r in all_items if r.get("confidence", 0) >= 0.8)
+        med_conf = sum(1 for r in all_items if 0.5 <= r.get("confidence", 0) < 0.8)
 
         # Find which categories have results
         active_cats = {k: v for k, v in cats.items() if v}
-        total = len(results)
+        total = len(all_items)
 
         # Build stat cards (top 6 with results + total)
         def stat_card(value, label, color):
@@ -254,7 +296,7 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
 
         # ═══════════════ KEY FINDINGS (Top 10) ═══════════════
         # Sort all results by confidence, pick top 10 unique high-value findings
-        key_findings = sorted(results, key=lambda r: r.get("confidence", 0), reverse=True)
+        key_findings = sorted(all_items, key=lambda r: r.get("confidence", 0), reverse=True)
         # Dedup by value
         seen_kf = set()
         unique_kf = []
