@@ -16,7 +16,14 @@ def app():
 
 @pytest.fixture
 def client(app):
-    return app.test_client()
+    c = app.test_client()
+    # Authenticate the session so endpoint tests work whether or not a
+    # password is configured on the machine running the tests. Without this,
+    # a machine that has run `app.py --setup` redirects every API call to
+    # /login (302) and the integration suite fails for environment reasons.
+    with c.session_transaction() as sess:
+        sess["auth"] = True
+    return c
 
 
 class TestAppBoot:
