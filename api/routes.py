@@ -16,6 +16,34 @@ from utils.validators import Validators, ValidationError
 from utils.security import scan_limiter
 from utils.logger import log
 
+
+def _csv_safe(value):
+    """Neutralize spreadsheet formula injection. A cell beginning with = + - @
+    (or tab/CR) is executed as a formula by Excel/Sheets; OSINT values can be
+    attacker-controlled, so prefix those with a single quote."""
+    s = "" if value is None else str(value)
+    if s and s[0] in ('=', '+', '-', '@', '\t', '\r'):
+        return "'" + s
+    return s
+
+
+def _prune_dir(directory, keep=200):
+    """Keep only the newest `keep` files in a directory (exports accumulate
+    forever otherwise). Best-effort; never raises into the request path."""
+    try:
+        files = [os.path.join(directory, f) for f in os.listdir(directory)]
+        files = [f for f in files if os.path.isfile(f)]
+        if len(files) <= keep:
+            return
+        files.sort(key=lambda p: os.path.getmtime(p), reverse=True)
+        for old in files[keep:]:
+            try:
+                os.remove(old)
+            except OSError:
+                pass
+    except OSError:
+        pass
+
 # ═══════════════ SCAN ENDPOINTS ═══════════════
 scans_bp = Blueprint('scans', __name__)
 
@@ -71,7 +99,9 @@ def scan_metadata():
 @scans_bp.route("/api/scan/phone")
 def scan_phone():
     phone = request.args.get("phone", "").strip()
-    if not phone or not Validators._PHONE.match(phone):
+    if not phone:
+        return _sse_error("Phone number cannot be empty")
+    if not Validators._PHONE.match(phone):
         return _sse_error("Invalid phone number format")
     return _sse_response(run_tool_scan("phoneinfoga", phone, "phone"))
 
@@ -239,10 +269,13 @@ def upload_file():
     safe_name = _re.sub(r'[^a-zA-Z0-9._\-]', '_', f.filename)[:100]
     if not safe_name or safe_name.startswith('.'):
         return jsonify({"error": "Invalid filename"}), 400
+    # Prefix with a timestamp so re-uploads of the same name don't overwrite.
+    safe_name = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{safe_name}"
     upload_dir = os.path.join(Config.BASE_DIR, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
     filepath = os.path.join(upload_dir, safe_name)
     f.save(filepath)
+    _prune_dir(upload_dir, keep=200)
     log.info(f"File uploaded: {filepath} ({size} bytes)")
     return jsonify({"filepath": filepath, "filename": safe_name, "size": size})
 
@@ -278,7 +311,7 @@ def delete_scan(scan_id):
 def scan_notes(scan_id):
     if request.method == "GET":
         return jsonify({"notes": ScanDB.get_notes(scan_id)})
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     ScanDB.save_notes(scan_id, data.get("notes", ""))
     return jsonify({"status": "saved"})
 
@@ -315,7 +348,7 @@ exports_bp = Blueprint('exports', __name__)
 
 @exports_bp.route("/api/export", methods=["POST"])
 def export():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     results = data.get("results", [])
     fmt = data.get("format", "json")
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -326,8 +359,9 @@ def export():
             w = csv.writer(f)
             w.writerow(["Type", "Value", "Source", "Confidence", "Time"])
             for r in results:
-                w.writerow([r.get("type",""), r.get("value",""), r.get("source",""),
-                           r.get("confidence",""), r.get("time","")])
+                w.writerow([_csv_safe(r.get("type", "")), _csv_safe(r.get("value", "")),
+                           _csv_safe(r.get("source", "")), _csv_safe(r.get("confidence", "")),
+                           _csv_safe(r.get("time", ""))])
     elif fmt == "json":
         fp = os.path.join(Config.EXPORT_DIR, f"ghosttrace_{ts}.json")
         with open(fp, "w") as f: json.dump(results, f, indent=2, ensure_ascii=False)
@@ -337,20 +371,22 @@ def export():
             f.write(f"GhostTrace Export — {ts}\n{'='*60}\n\n")
             for r in results:
                 f.write(f"[{r.get('type','?')}] {r.get('value','')} — {r.get('source','?')} ({r.get('confidence','')})\n")
+    _prune_dir(Config.EXPORT_DIR, keep=200)
     log.info(f"Exported {len(results)} results as {fmt} → {fp}")
     return jsonify({"status": "ok", "filepath": fp, "format": fmt})
 
 @exports_bp.route("/api/report", methods=["POST"])
 def report():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     result = ReportGenerator.generate_html(
         data.get("results", []), data.get("target", "Unknown"), data.get("module", "Unknown"),
         recon_data=data.get("recon_data"))
+    _prune_dir(Config.EXPORT_DIR, keep=200)
     return jsonify({"status": "ok", **result})
 
 @exports_bp.route("/api/report/pdf", methods=["POST"])
 def report_pdf():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     fn = data.get("html_filename", "")
     result = ReportGenerator.html_to_pdf(fn)
     if "error" in result:
