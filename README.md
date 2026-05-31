@@ -2,7 +2,7 @@
 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
-![Version 6.0](https://img.shields.io/badge/Version-6.0-ff6b35)
+![Version 6.0](https://img.shields.io/badge/Version-6.1-ff6b35)
 ![Platform Linux](https://img.shields.io/badge/Platform-Linux%20(Kali%20recommended)-orange?logo=linux&logoColor=white)
 ![Tools 9](https://img.shields.io/badge/Tools-9%20Integrated-purple)
 ![Routes 36](https://img.shields.io/badge/API%20Routes-36-blue)
@@ -16,7 +16,7 @@
   ██║   ██║██╔══██║██║   ██║╚════██║   ██║      ██║   ██╔══██╗██╔══██║██║     ██╔══╝  
   ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║      ██║   ██║  ██║██║  ██║╚██████╗███████╗
    ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
-                                                                          v6.0 by Alsartawi
+                                                                          v6.1 by Alsartawi
 ```
 
 **OSINT made simple — from beginner to professional.**
