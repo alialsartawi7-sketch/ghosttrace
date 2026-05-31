@@ -40,3 +40,9 @@ class ToolAdapter(ABC):
     def get_env(self) -> Optional[dict[str, str]]:
         """Override to inject env vars (e.g. API keys) into subprocess. Returns dict or None."""
         return None
+
+    def finalize(self, context: dict) -> list[dict[str, Any]]:
+        """Override to emit results buffered during streaming (e.g. grouping
+        many host:ip lines into one result per host). Called once after the
+        process finishes. Default: nothing buffered."""
+        return []

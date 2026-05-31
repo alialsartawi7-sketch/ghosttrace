@@ -75,9 +75,12 @@ class HarvesterAdapter(ToolAdapter):
             host = line.split(":")[0].strip() if ":" in line else line.strip()
             ip = line.split(":")[-1].strip() if ":" in line and line.count(":") == 1 else ""
             if host and "." in host:
-                val = f"{host}" + (f" ({ip})" if ip and ip != host else "")
-                results.append({"value": val, "source": self.name, "type": "subdomain",
-                               "confidence": 0.8, "extra": ip})
+                # Buffer by hostname; one result per host is emitted in finalize()
+                # with all resolved IPs aggregated (avoids duplicate rows).
+                host_map = context.setdefault("_host_map", {})
+                ips = host_map.setdefault(host, [])
+                if ip and ip != host and ip not in ips:
+                    ips.append(ip)
         else:
             # Catch emails in any line
             for email in self._EMAIL_RE.findall(line):
@@ -88,6 +91,25 @@ class HarvesterAdapter(ToolAdapter):
 
     def should_ignore(self, value):
         return value.lower() in Config.IGNORE_EMAILS
+
+    def finalize(self, context):
+        """Emit one subdomain result per host, with all resolved IPs aggregated
+        into `extra`. The stored value is the clean hostname (no inline IP), so
+        the DB, entity timeline, and graph stay free of duplicate rows."""
+        results = []
+        host_map = context.get("_host_map", {})
+        for host, ips in host_map.items():
+            # Score using the legacy "host (ip)" form so existing confidence
+            # heuristics (resolved-IP bonus, private-IP penalty) still apply.
+            conf_input = f"{host} ({ips[0]})" if ips else host
+            results.append({
+                "value": host,
+                "source": self.name,
+                "type": "subdomain",
+                "confidence": self.get_confidence(conf_input),
+                "extra": ", ".join(ips),
+            })
+        return results
 
     # Smart confidence patterns
     _PERSONAL_EMAIL = re.compile(r'^[a-z]+[\._][a-z]+@', re.I)  # firstname.lastname@

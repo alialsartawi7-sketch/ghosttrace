@@ -25,25 +25,34 @@ class ReportGenerator:
     def _group_subdomains(items):
         """Collapse subdomain results that share a hostname into a single row.
 
-        theHarvester emits one result per host:ip pair, so a host resolving to
-        N IPs produced N rows (inflating the count). This groups them: one row
-        per hostname, with all resolved IPs aggregated. Bare-IP results are
-        kept as-is. The highest confidence in a group is used."""
+        Handles both formats:
+          * new (v6.2+): value is a clean hostname, IPs live in `extra`
+          * legacy: value is "host (ip)" with one row per IP
+        One row per hostname, all IPs aggregated, highest confidence kept."""
         import re as _re
         ip_re = _re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
         groups, order = {}, []
         for r in items:
             val = (r.get("value", "") or "").strip()
-            host, ip = val, None
+            host, found_ips = val, []
+            # Legacy inline "host (ip)"
             if " (" in val and val.endswith(")"):
                 host = val.split(" (")[0].strip()
-                ip = val[val.index(" (") + 2:-1].strip().rstrip(".")
+                found_ips.append(val[val.index(" (") + 2:-1].strip().rstrip("."))
+            # New format: IPs (possibly comma-separated) in extra
+            extra = (r.get("extra", "") or "").strip()
+            if extra:
+                for piece in extra.split(","):
+                    piece = piece.strip().rstrip(".")
+                    if piece:
+                        found_ips.append(piece)
             key = host
             if key not in groups:
                 groups[key] = {"ips": [], "rep": r, "conf": r.get("confidence", 0)}
                 order.append(key)
-            if ip and ip != key and ip not in groups[key]["ips"]:
-                groups[key]["ips"].append(ip)
+            for ip in found_ips:
+                if ip and ip != key and ip not in groups[key]["ips"]:
+                    groups[key]["ips"].append(ip)
             if r.get("confidence", 0) > groups[key]["conf"]:
                 groups[key]["conf"] = r.get("confidence", 0)
                 groups[key]["rep"] = r
@@ -57,6 +66,7 @@ class ReportGenerator:
             else:
                 rep["value"] = key
             rep["confidence"] = g["conf"]
+            rep["extra"] = ""  # consumed into value; avoid double-display
             out.append(rep)
         return out
 

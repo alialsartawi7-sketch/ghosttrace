@@ -51,16 +51,32 @@ class TestParseLine:
 
     def test_subdomain_extracted(self, adapter):
         ctx = {"section": "hosts"}
-        result = adapter.parse_line("mail.example.com:93.184.216.34", ctx)
+        # Hosts are buffered during streaming, then emitted by finalize()
+        adapter.parse_line("mail.example.com:93.184.216.34", ctx)
+        result = adapter.finalize(ctx)
         assert len(result) == 1
-        assert "mail.example.com" in result[0]["value"]
+        assert result[0]["value"] == "mail.example.com"
         assert result[0]["type"] == "subdomain"
+        assert "93.184.216.34" in result[0]["extra"]
 
     def test_subdomain_without_ip(self, adapter):
         ctx = {"section": "hosts"}
-        result = adapter.parse_line("cdn.example.com", ctx)
+        adapter.parse_line("cdn.example.com", ctx)
+        result = adapter.finalize(ctx)
         assert len(result) == 1
         assert result[0]["value"] == "cdn.example.com"
+
+    def test_subdomain_ip_aggregation(self, adapter):
+        """Same host with multiple IPs collapses to one result, IPs aggregated."""
+        ctx = {"section": "hosts"}
+        adapter.parse_line("asac.example.com:1.1.1.1", ctx)
+        adapter.parse_line("asac.example.com:2.2.2.2", ctx)
+        adapter.parse_line("asac.example.com:3.3.3.3", ctx)
+        result = adapter.finalize(ctx)
+        assert len(result) == 1
+        assert result[0]["value"] == "asac.example.com"
+        for ip in ("1.1.1.1", "2.2.2.2", "3.3.3.3"):
+            assert ip in result[0]["extra"]
 
     def test_empty_line(self, adapter):
         ctx = {}

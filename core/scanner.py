@@ -129,6 +129,24 @@ def run_tool_scan(tool_name, target, module, **opts):
         with _lock:
             active_scans.pop(scan_id, None)
 
+    # Adapter finalize: emit any results buffered during streaming (e.g. the
+    # harvester grouping host:ip lines into one row per host). Skipped on abort.
+    if not (aborted or scan_ref.get("stop")):
+        try:
+            for item in tool.finalize(context):
+                val = item["value"]
+                if val in found_values:
+                    continue
+                found_values.add(val)
+                item["confidence"] = _blend_confidence(item)
+                if ResultDB.add(scan_id, val, item["source"], item["type"],
+                                item["confidence"], item.get("extra")):
+                    scan_ref["count"] += 1
+                    Correlator.process_result(val, item["type"], item["source"], target)
+                    yield sse("result", item)
+        except Exception as e:
+            log.error(f"Scan {scan_id[:8]} finalize error: {e}")
+
     if timed_out:
         yield sse("log", {"type": "warn", "msg": f"Timed out after {Config.TOOL_TIMEOUT}s"})
 

@@ -156,6 +156,34 @@ class Database:
         except Exception as e:
             log.warning(f"Result dedup/index migration skipped: {e}")
 
+        # Collapse legacy subdomain entities stored as "host (ip)" into a single
+        # clean hostname, merging scan counts. Pre-v6.2 scans stored one entity
+        # per host:ip pair, which duplicated the Entity Timeline. Idempotent.
+        try:
+            legacy = conn.execute(
+                "SELECT value, scan_count, first_seen, last_seen FROM entities "
+                "WHERE type='subdomain' AND value LIKE '% (%'").fetchall()
+            for row in legacy:
+                clean = row["value"].split(" (")[0].strip()
+                if not clean or clean == row["value"]:
+                    continue
+                existing = conn.execute(
+                    "SELECT scan_count FROM entities WHERE value=?", (clean,)).fetchone()
+                if existing:
+                    conn.execute(
+                        "UPDATE entities SET scan_count=scan_count+?, last_seen=MAX(last_seen,?) "
+                        "WHERE value=?", (row["scan_count"], row["last_seen"], clean))
+                else:
+                    conn.execute(
+                        "INSERT INTO entities (value,type,first_seen,last_seen,scan_count) "
+                        "VALUES (?,?,?,?,?)",
+                        (clean, "subdomain", row["first_seen"], row["last_seen"], row["scan_count"]))
+                conn.execute("DELETE FROM entities WHERE value=?", (row["value"],))
+            if legacy:
+                log.info(f"Migration: collapsed {len(legacy)} legacy subdomain entities")
+        except Exception as e:
+            log.warning(f"Subdomain entity migration skipped: {e}")
+
 
 class ScanDB:
     @staticmethod

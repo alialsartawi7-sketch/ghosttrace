@@ -25,18 +25,19 @@ GhostTrace is a modular OSINT intelligence platform that wraps 9 Linux tools int
 
 "⭐ If you find this useful, a star helps a lot!"
 "🐛 Found a bug? Open an issue — I actively fix them."
+
 ---
+
 ## 🆕 What's New in v6.2
 
 Report quality & email-security release.
 
 | Area | Improvement |
 |------|-------------|
-| 🌐 **Subdomain grouping** | Hosts that resolve to multiple IPs are now collapsed into a single row with all IPs aggregated — no more duplicate entries inflating the count, so totals reflect *unique* hosts |
-| 📧 **DMARC detection** | DNS scans now check `_dmarc.<domain>` automatically — reports the policy if present, or flags **"vulnerable to email spoofing"** when missing (complements existing SPF/DKIM detection) |
+| 🌐 **Subdomain grouping** | Hosts that resolve to multiple IPs are collapsed into a single row with all IPs aggregated — counts now reflect *unique* hosts, in the report, entity timeline, and graph alike |
+| 📧 **DMARC detection** | DNS scans check `_dmarc.<domain>` automatically — reports the policy if present, or flags **"vulnerable to email spoofing"** when missing |
 | 🎯 **Smarter Key Findings** | Domain-verification TXT tokens (Zoom, Google, MS, etc.) are down-ranked so they no longer crowd out real findings |
-| 📄 **Cleaner reports** | Accurate per-category counts and de-duplicated Key Findings across the whole report |
-
+| 🧹 **Cleaner data at the source** | Subdomains are de-duplicated when stored, not just when displayed |
 
 ---
 
@@ -251,7 +252,6 @@ Reports include **all 9 result types** with:
 | Category | Details |
 |----------|---------|
 | ✅ **9 Test Files** | validators, harvester, correlator, risk_engine, recon, new_tools, database, report, integration |
-| ✅ **201 Tests Passing** | Full suite green — unit + integration |
 | ✅ **Linting** | flake8 checks for syntax errors and undefined names |
 | ✅ **API Documentation** | Full reference at [`docs/API.md`](docs/API.md) — all 36 endpoints |
 | ✅ **Contributing Guide** | [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to add tools, run tests, code style |
@@ -322,6 +322,12 @@ pipx install maigret sherlock-project
 wget https://github.com/sundowndev/phoneinfoga/releases/latest/download/phoneinfoga_Linux_x86_64.tar.gz -O /tmp/phoneinfoga.tar.gz
 tar xzf /tmp/phoneinfoga.tar.gz -C /tmp/
 sudo mv /tmp/phoneinfoga /usr/local/bin/
+
+# Clone and run
+git clone https://github.com/alialsartawi7-sketch/ghosttrace.git
+cd ghosttrace
+pip install -r requirements.txt --break-system-packages
+python3 app.py
 
 # Optional — for Tor routing
 sudo apt install tor -y
@@ -407,15 +413,13 @@ All themes — try it 😉
 | Layer | Implementation |
 |-------|---------------|
 | Authentication | bcrypt password hashing, session-based auth |
-| **CSRF Protection** | Token per session, validated on all POST/DELETE; cross-site GET rejected via Sec-Fetch-Site |
+| **CSRF Protection** | Token per session, validated on all POST/DELETE |
 | Input validation | Per-field regex: domain, email, username, filepath, phone |
 | CLI validation | **Whitelist** regex per tool (not a blacklist) |
 | Path traversal | Blocks `..`, `/etc/shadow`, `/root`, `.ssh` (uploads dir whitelisted) |
 | Output sanitization | Strips ANSI codes + control characters |
-| Export safety | CSV formula-injection neutralized |
-| Secret storage | Persistent secret key + config file locked to mode 600 |
 | Rate limiting | 20 scans per 60 seconds |
-| Process isolation | New session/process-group + kill on timeout/abort |
+| Process isolation | `os.setsid` + process group kill on timeout/abort |
 | File upload | Sanitized filename, safe directory, 16MB limit |
 
 ---

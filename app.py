@@ -1,5 +1,5 @@
 """
-GhostTrace v6.0 — OSINT Intelligence Platform
+GhostTrace v6.2 — OSINT Intelligence Platform
 by Alsartawi
 
 Professional Edition with modular architecture
