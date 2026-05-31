@@ -5,7 +5,7 @@ Centralized config with environment support
 import os, json, secrets
 
 class Config:
-    VERSION = "6.0"
+    VERSION = "6.1"
     BASE_DIR = os.path.expanduser("~/ghosttrace_data")
     DB_PATH = os.path.join(BASE_DIR, "ghosttrace.db")
     EXPORT_DIR = os.path.expanduser("~/ghosttrace_exports")
@@ -13,7 +13,8 @@ class Config:
     LOG_DIR = os.path.join(BASE_DIR, "logs")
 
     TOR_PROXY = os.environ.get("GT_TOR_PROXY", "socks5://127.0.0.1:9050")
-    SECRET_KEY = os.environ.get("GT_SECRET_KEY") or secrets.token_hex(32)
+    # SECRET_KEY is resolved via get_secret_key() so sessions survive restarts:
+    # env override > value stored in config.json > generated-and-persisted once.
 
     # Execution limits
     TOOL_TIMEOUT = 240         # Max seconds per tool
@@ -23,7 +24,6 @@ class Config:
 
     # Security
     ALLOWED_TOOLS = {"theharvester", "sherlock", "exiftool", "maigret", "phoneinfoga", "whois", "dig", "openssl"}
-    FORBIDDEN_CHARS = [";", "&&", "||", "|", "`", "$(", ")", ">", "<", ">>", "<<", "\n", "\r"]
     FORBIDDEN_PATHS = ["/etc/shadow", "/etc/passwd", ".ssh", "id_rsa", "/root", "/proc", "/sys"]
     MAX_INPUT_LENGTH = 256
 
@@ -63,6 +63,10 @@ class Config:
             with open(cls.CONFIG_FILE) as f: cfg = json.load(f)
         cfg["api_keys"] = keys
         with open(cls.CONFIG_FILE, "w") as f: json.dump(cfg, f, indent=2)
+        try:
+            os.chmod(cls.CONFIG_FILE, 0o600)
+        except OSError:
+            pass
 
     @classmethod
     def load_auth_hash(cls):
@@ -70,6 +74,34 @@ class Config:
             with open(cls.CONFIG_FILE) as f:
                 return json.load(f).get("auth_hash")
         return None
+
+    @classmethod
+    def get_secret_key(cls):
+        """Resolve the Flask session secret so it is STABLE across restarts.
+
+        Priority: GT_SECRET_KEY env var > value stored in config.json >
+        a freshly generated key that we then persist. Generating a new key
+        on every boot (the old behaviour) silently logged every user out.
+        Call after init() so BASE_DIR exists.
+        """
+        env_key = os.environ.get("GT_SECRET_KEY")
+        if env_key:
+            return env_key
+        cfg = {}
+        if os.path.exists(cls.CONFIG_FILE):
+            with open(cls.CONFIG_FILE) as f:
+                cfg = json.load(f)
+        key = cfg.get("secret_key")
+        if not key:
+            key = secrets.token_hex(32)
+            cfg["secret_key"] = key
+            with open(cls.CONFIG_FILE, "w") as f:
+                json.dump(cfg, f, indent=2)
+            try:
+                os.chmod(cls.CONFIG_FILE, 0o600)  # secrets live here — lock it down
+            except OSError:
+                pass
+        return key
 
     @classmethod
     def save_auth_hash(cls, hashed: str):
@@ -80,3 +112,7 @@ class Config:
         cfg["auth_hash"] = hashed
         with open(cls.CONFIG_FILE, "w") as f:
             json.dump(cfg, f, indent=2)
+        try:
+            os.chmod(cls.CONFIG_FILE, 0o600)
+        except OSError:
+            pass

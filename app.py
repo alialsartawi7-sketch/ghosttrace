@@ -81,7 +81,7 @@ def create_app():
 
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request
-    app.secret_key = Config.SECRET_KEY
+    app.secret_key = Config.get_secret_key()
 
     # Initialize components
     Database.init()
@@ -130,6 +130,15 @@ def create_app():
         # Allow static files
         if request.path.startswith("/static"):
             return
+        # Block cross-site requests to the API (CSRF-via-GET / drive-by scans).
+        # GET scan endpoints trigger subprocesses, so a page the user merely
+        # visits could fire them via <img>/EventSource/fetch. Same-origin,
+        # same-site and direct-navigation requests send Sec-Fetch-Site
+        # accordingly; only 'cross-site' is rejected. Browsers that omit the
+        # header are allowed through so legitimate/older clients don't break.
+        if request.path.startswith("/api/"):
+            if request.headers.get("Sec-Fetch-Site") == "cross-site":
+                return jsonify({"error": "Cross-site request blocked"}), 403
         # CSRF protection on mutation requests (always, regardless of auth)
         if request.method in ("POST", "DELETE"):
             token = request.headers.get("X-CSRF-Token")
