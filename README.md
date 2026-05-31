@@ -28,7 +28,7 @@ GhostTrace is a modular OSINT intelligence platform that wraps 9 Linux tools int
 
 ---
 
-## 🆕 What's New in v6.0
+## 🆕 What's New in v6.1
 
 | Feature | Description |
 |---------|-------------|
