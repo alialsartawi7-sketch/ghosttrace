@@ -39,6 +39,7 @@ class Database:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA busy_timeout=5000")
+        conn.execute("PRAGMA foreign_keys=ON")  # without this, ON DELETE CASCADE is ignored
         return conn
 
     @classmethod
@@ -143,11 +144,23 @@ class Database:
             except Exception as e:
                 log.warning(f"Migration skip ({table}.{column}): {e}")
 
+        # De-duplicate any legacy rows, then enforce uniqueness so future
+        # inserts can rely on INSERT OR IGNORE instead of a SELECT-then-INSERT.
+        try:
+            conn.execute(
+                "DELETE FROM results WHERE id NOT IN "
+                "(SELECT MIN(id) FROM results GROUP BY scan_id, value, type)")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_results_unique "
+                "ON results(scan_id, value, type)")
+        except Exception as e:
+            log.warning(f"Result dedup/index migration skipped: {e}")
+
 
 class ScanDB:
     @staticmethod
     def create(module, target, tool):
-        sid = str(uuid.uuid4())[:8]
+        sid = uuid.uuid4().hex[:12]
         with Database.connection() as conn:
             conn.execute(
                 "INSERT INTO scans (id,module,target,tool,started_at) VALUES (?,?,?,?,?)",
@@ -155,16 +168,26 @@ class ScanDB:
         return sid
 
     @staticmethod
-    def finish(sid, status, total, error_msg=None):
+    def finish(sid, status, total=None, error_msg=None):
+        """Finalize a scan. Refuses to overwrite an already-terminal state, so
+        an aborter and the scan generator can both call this without racing
+        (first writer wins). Pass total=None to keep the existing count."""
         with Database.connection() as conn:
-            scan = conn.execute("SELECT started_at FROM scans WHERE id=?", (sid,)).fetchone()
-            dur = None
-            if scan:
-                start = datetime.fromisoformat(scan["started_at"])
-                dur = (datetime.now() - start).total_seconds()
-            conn.execute(
-                "UPDATE scans SET ended_at=?,status=?,total_results=?,duration_sec=?,error_msg=? WHERE id=?",
-                (datetime.now().isoformat(), status, total, dur, error_msg, sid))
+            scan = conn.execute("SELECT started_at, status FROM scans WHERE id=?", (sid,)).fetchone()
+            if not scan:
+                return
+            if scan["status"] in ("complete", "aborted", "error"):
+                return  # terminal — don't clobber
+            start = datetime.fromisoformat(scan["started_at"])
+            dur = (datetime.now() - start).total_seconds()
+            if total is None:
+                conn.execute(
+                    "UPDATE scans SET ended_at=?,status=?,duration_sec=?,error_msg=? WHERE id=?",
+                    (datetime.now().isoformat(), status, dur, error_msg, sid))
+            else:
+                conn.execute(
+                    "UPDATE scans SET ended_at=?,status=?,total_results=?,duration_sec=?,error_msg=? WHERE id=?",
+                    (datetime.now().isoformat(), status, total, dur, error_msg, sid))
 
     @staticmethod
     def get_history(page=1, per_page=50):
@@ -244,19 +267,18 @@ class ScanDB:
 class ResultDB:
     @staticmethod
     def add(scan_id, value, source, rtype, confidence=0.5, extra=None):
+        # Atomic dedup via the UNIQUE(scan_id,value,type) index — INSERT OR
+        # IGNORE returns rowcount 0 when the row already exists. No race, and
+        # one round-trip instead of SELECT-then-INSERT.
         with Database.connection() as conn:
-            # Dedup check within same scan
-            existing = conn.execute(
-                "SELECT id FROM results WHERE scan_id=? AND value=? AND type=?",
-                (scan_id, value, rtype)).fetchone()
-            if existing:
-                return False  # Duplicate
-            conn.execute(
-                "INSERT INTO results (scan_id,value,source,type,confidence,extra,found_at) VALUES (?,?,?,?,?,?,?)",
+            cur = conn.execute(
+                "INSERT OR IGNORE INTO results (scan_id,value,source,type,confidence,extra,found_at) "
+                "VALUES (?,?,?,?,?,?,?)",
                 (scan_id, value, source, rtype, confidence, extra, datetime.now().isoformat()))
-        # Update entity tracking
-        EntityDB.upsert(value, rtype)
-        return True
+            inserted = cur.rowcount > 0
+        if inserted:
+            EntityDB.upsert(value, rtype)
+        return inserted
 
     @staticmethod
     def get_by_scan(scan_id, page=1, per_page=100):
@@ -295,14 +317,13 @@ class EntityDB:
     @staticmethod
     def upsert(value, etype):
         now = datetime.now().isoformat()
+        # Atomic upsert keyed on the UNIQUE(value) constraint.
         with Database.connection() as conn:
-            existing = conn.execute("SELECT id,scan_count FROM entities WHERE value=?", (value,)).fetchone()
-            if existing:
-                conn.execute("UPDATE entities SET last_seen=?,scan_count=scan_count+1 WHERE id=?",
-                            (now, existing["id"]))
-            else:
-                conn.execute("INSERT INTO entities (value,type,first_seen,last_seen) VALUES (?,?,?,?)",
-                            (value, etype, now, now))
+            conn.execute(
+                "INSERT INTO entities (value,type,first_seen,last_seen) VALUES (?,?,?,?) "
+                "ON CONFLICT(value) DO UPDATE SET last_seen=excluded.last_seen, "
+                "scan_count=scan_count+1",
+                (value, etype, now, now))
 
     @staticmethod
     def add_relation(src, tgt, rel_type, confidence=0.5):
