@@ -25,6 +25,18 @@ GhostTrace is a modular OSINT intelligence platform that wraps 9 Linux tools int
 
 "⭐ If you find this useful, a star helps a lot!"
 "🐛 Found a bug? Open an issue — I actively fix them."
+---
+## 🆕 What's New in v6.2
+
+Report quality & email-security release.
+
+| Area | Improvement |
+|------|-------------|
+| 🌐 **Subdomain grouping** | Hosts that resolve to multiple IPs are now collapsed into a single row with all IPs aggregated — no more duplicate entries inflating the count, so totals reflect *unique* hosts |
+| 📧 **DMARC detection** | DNS scans now check `_dmarc.<domain>` automatically — reports the policy if present, or flags **"vulnerable to email spoofing"** when missing (complements existing SPF/DKIM detection) |
+| 🎯 **Smarter Key Findings** | Domain-verification TXT tokens (Zoom, Google, MS, etc.) are down-ranked so they no longer crowd out real findings |
+| 📄 **Cleaner reports** | Accurate per-category counts and de-duplicated Key Findings across the whole report |
+
 
 ---
 
