@@ -5,7 +5,7 @@ Centralized config with environment support
 import os, json, secrets
 
 class Config:
-    VERSION = "6.2"
+    VERSION = "6.3"
     BASE_DIR = os.path.expanduser("~/ghosttrace_data")
     DB_PATH = os.path.join(BASE_DIR, "ghosttrace.db")
     EXPORT_DIR = os.path.expanduser("~/ghosttrace_exports")

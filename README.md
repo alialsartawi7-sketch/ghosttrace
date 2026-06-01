@@ -2,7 +2,7 @@
 
 ![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue?logo=python&logoColor=white)
 ![License MIT](https://img.shields.io/badge/License-MIT-green)
-![Version 6.2](https://img.shields.io/badge/Version-6.2-ff6b35)
+![Version 6.3](https://img.shields.io/badge/Version-6.3-ff6b35)
 ![Platform Linux](https://img.shields.io/badge/Platform-Linux%20(Kali%20recommended)-orange?logo=linux&logoColor=white)
 ![Tools 9](https://img.shields.io/badge/Tools-9%20Integrated-purple)
 ![Routes 36](https://img.shields.io/badge/API%20Routes-36-blue)
@@ -16,7 +16,7 @@
   ██║   ██║██╔══██║██║   ██║╚════██║   ██║      ██║   ██╔══██╗██╔══██║██║     ██╔══╝  
   ╚██████╔╝██║  ██║╚██████╔╝███████║   ██║      ██║   ██║  ██║██║  ██║╚██████╗███████╗
    ╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝      ╚═╝   ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚══════╝
-                                                                          v6.2 by Alsartawi
+                                                                          v6.3 by Alsartawi
 ```
 
 **OSINT made simple — from beginner to professional.**
@@ -25,6 +25,16 @@ GhostTrace is a modular OSINT intelligence platform that wraps 9 Linux tools int
 
 "⭐ If you find this useful, a star helps a lot!"
 "🐛 Found a bug? Open an issue — I actively fix them."
+
+---
+
+## 🆕 What's New in v6.3
+
+Frontend security hardening — no breaking changes, all 153 tests pass.
+
+| Area | Fix |
+|------|-----|
+| 🛡️ **DOM-XSS guard** | Scan-derived values (WHOIS fields, cert SANs/CN, page titles, raw tool output) are now escaped at every UI sink — console, result list, history, and graph tooltip. A fail-closed allowlist sanitizer preserves the `hl`/`muted`/`val` styling spans while neutralizing any other injected markup. |
 
 ---
 
@@ -267,7 +277,7 @@ pytest tests/ -v
 ## Architecture
 
 ```
-                           GhostTrace v6.2
+                           GhostTrace v6.3
 
  ┌──────────┐    ┌────────────┐    ┌──────────────┐    ┌──────────┐
  │  Web UI   │───→│ Validators  │───→│ Tool Adapters │───→│ Execution│

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GhostTrace v6.2 — by Alsartawi</title>
+<title>GhostTrace v6.3 — by Alsartawi</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
 <link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/static/apple-touch-icon.png">
@@ -252,7 +252,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
 <nav>
   <div class="brand">
     <div class="brand-icon"><img src="/static/favicon-48.png" alt="GhostTrace"></div>
-    <div><div class="brand-name">GhostTrace</div><div class="brand-ver">v6.2 by Alsartawi</div></div>
+    <div><div class="brand-name">GhostTrace</div><div class="brand-ver">v6.3 by Alsartawi</div></div>
   </div>
   <div class="nav-tabs">
     <div class="ntab active" onclick="switchMod('auto',this)" title="Auto Pipeline"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg><span>Auto</span></div>
@@ -407,7 +407,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
           <button class="ib" onclick="copyConsole()" title="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
         </div>
       </div>
-      <div class="term" id="term"><div class="tl"><span class="tl-time">--:--:--</span><span class="tl-b sys">SYS</span><span class="tl-m">GhostTrace v6.2 by <span class="hl">Alsartawi</span> — <span class="muted">system ready</span></span></div></div>
+      <div class="term" id="term"><div class="tl"><span class="tl-time">--:--:--</span><span class="tl-b sys">SYS</span><span class="tl-m">GhostTrace v6.3 by <span class="hl">Alsartawi</span> — <span class="muted">system ready</span></span></div></div>
     </div>
     <div class="cli"><span class="cli-p">ghost $</span><input class="cli-i" id="cli-i" placeholder="theHarvester -d example.com -b crtsh" onkeydown="if(event.key==='Enter')runCLI()"><span class="cli-h">Enter ↵</span></div>
   </div>
@@ -547,12 +547,20 @@ function switchMod(name,el){
 }
 
 // ═══════════ LOG ═══════════
+// XSS guard: scan-derived values (cert SANs, WHOIS fields, page titles, raw
+// tool output) flow into the console and result list. Escape them at every sink.
+function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+// Console lines may carry intentional styling spans from the backend
+// (<span class='hl'>...</span>). Escape the whole string first, then re-allow
+// ONLY that fixed, attribute-free set of spans — any other injected markup
+// (e.g. <img onerror=...> inside a WHOIS value) stays inert. Fails closed.
+function safeLog(msg){var e=escHtml(msg);return e.replace(/&lt;span class=(?:&#39;|&quot;)(hl|muted|val)(?:&#39;|&quot;)&gt;/g,'<span class="$1">').replace(/&lt;\/span&gt;/g,'</span>');}
 function log(type,msg){const t=document.getElementById('term');const o=t.querySelector('.cursor-line');if(o)o.remove();
   const n=new Date(),time=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
-  const r=document.createElement('div');r.className='tl';r.innerHTML=`<span class="tl-time">${time}</span><span class="tl-b ${type}">${type.toUpperCase()}</span><span class="tl-m">${msg}</span>`;
+  const r=document.createElement('div');r.className='tl';r.innerHTML=`<span class="tl-time">${time}</span><span class="tl-b ${type}">${type.toUpperCase()}</span><span class="tl-m">${safeLog(msg)}</span>`;
   t.appendChild(r);t.scrollTop=t.scrollHeight;if(type==='err')sndErr()}
 function logRun(msg){const t=document.getElementById('term'),n=new Date(),time=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
-  const r=document.createElement('div');r.className='tl cursor-line';r.innerHTML=`<span class="tl-time">${time}</span><span class="tl-b run">RUN</span><span class="tl-m">${msg}<span class="cursor"></span></span>`;
+  const r=document.createElement('div');r.className='tl cursor-line';r.innerHTML=`<span class="tl-time">${time}</span><span class="tl-b run">RUN</span><span class="tl-m">${safeLog(msg)}<span class="cursor"></span></span>`;
   t.appendChild(r);t.scrollTop=t.scrollHeight}
 function clearConsole(){document.getElementById('term').innerHTML='';log('sys','Console cleared.')}
 function copyConsole(){navigator.clipboard.writeText(document.getElementById('term').innerText).then(()=>log('sys','Copied to clipboard'))}
@@ -577,8 +585,9 @@ function addResult(val,src,type,confidence){
   const item=document.createElement('div');item.className='ri';
   const confPct=Math.round(confidence*100);const confCls=confPct>=80?'val':confPct>=50?'hl':'muted';
   // Dork results: make the value a clickable Google link
-  const displayVal=type==='dork'?`<a href="https://www.google.com/search?q=${encodeURIComponent(val)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${val}</a>`:val;
-  item.innerHTML=`<div class="ri-ic ${cls[type]||'ri-e'}">${icons[type]||'?'}</div><div class="ri-body"><div class="ri-v">${displayVal}</div><div class="ri-meta">${src} · <span class="${confCls}">${confPct}%</span> · ${new Date().toLocaleTimeString()}</div></div><button class="ri-copy" title="Copy">⎘</button>`;
+  const sv=escHtml(val);
+  const displayVal=type==='dork'?`<a href="https://www.google.com/search?q=${encodeURIComponent(val)}" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none">${sv}</a>`:sv;
+  item.innerHTML=`<div class="ri-ic ${cls[type]||'ri-e'}">${icons[type]||'?'}</div><div class="ri-body"><div class="ri-v">${displayVal}</div><div class="ri-meta">${escHtml(src)} · <span class="${confCls}">${confPct}%</span> · ${new Date().toLocaleTimeString()}</div></div><button class="ri-copy" title="Copy">⎘</button>`;
   item.querySelector('.ri-copy').addEventListener('click',function(){
     navigator.clipboard.writeText(val).then(()=>{this.textContent='✓';this.classList.add('copied');setTimeout(()=>{this.textContent='⎘';this.classList.remove('copied')},1500)})});
   list.appendChild(item);list.scrollTop=list.scrollHeight;sndFound()}
@@ -1031,7 +1040,7 @@ function _attachGraphEvents(canvas,container,tooltip,nodeMap,edges){
       const hover=graphNodes.find(n=>Math.sqrt((n.x-m.x)**2+(n.y-m.y)**2)<n.r+6);
       if(hover){const rect=canvas.getBoundingClientRect();
         const conf=hover.conf?` (${Math.round(hover.conf*100)}%)`:'';
-        tooltip.innerHTML=`<b>${hover.id}</b><br><span style="color:${_nodeColors[hover.type]||'#888'}">${hover.type}</span>${conf}`;
+        tooltip.innerHTML=`<b>${escHtml(hover.id)}</b><br><span style="color:${_nodeColors[hover.type]||'#888'}">${escHtml(hover.type)}</span>${conf}`;
         tooltip.style.display='block';
         let tx=e.clientX-rect.left+12,ty=e.clientY-rect.top-8;
         if(tx+200>canvas.width)tx=e.clientX-rect.left-200;
@@ -1102,7 +1111,7 @@ async function openHistory(){
     scans.forEach(s=>{const div=document.createElement('div');div.className='hist-item';
       const time=s.started_at?new Date(s.started_at).toLocaleString():'?';
       const dur=s.duration_sec?` · ${s.duration_sec.toFixed(1)}s`:'';
-      div.innerHTML=`<div class="hist-info"><div class="hist-target">${s.target}</div><div class="hist-meta">${s.module} · ${s.tool} · ${time}${dur} · ${s.total_results} results</div></div>
+      div.innerHTML=`<div class="hist-info"><div class="hist-target">${escHtml(s.target)}</div><div class="hist-meta">${escHtml(s.module)} · ${escHtml(s.tool)} · ${time}${dur} · ${s.total_results} results</div></div>
         <div class="hist-actions"><button class="hist-btn" onclick="toggleStar('${s.id}',event)" title="Star" style="color:${s.starred?'#fbbf24':'var(--text-3)'}">${s.starred?'★':'☆'}</button><button class="hist-btn" onclick="loadHistory('${s.id}')">Load</button><button class="hist-btn" onclick="openNotes('${s.id}')" title="Notes">📝</button><button class="hist-btn" onclick="deleteScan('${s.id}',event)" title="Delete" style="border-color:var(--danger);color:var(--danger)">🗑️</button><span class="hist-badge ${s.status}">${s.status}</span></div>`;
       list.appendChild(div)});
     document.getElementById('hist-modal').classList.add('open')}catch(e){log('err','Failed to load history')}}
