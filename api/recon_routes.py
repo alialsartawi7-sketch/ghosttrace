@@ -44,6 +44,9 @@ def recon_validate():
     do_attack = request.args.get("attack_surface", "0") == "1"
 
     def generate():
+        import time as _time
+        _start = _time.time()
+        _DEADLINE = 300  # seconds — overall cap so recon can't run unbounded
         yield sse("log", {"type": "info", "msg": "Starting active reconnaissance..."})
         yield sse("progress", {"pct": 5, "label": "Loading targets"})
 
@@ -115,7 +118,7 @@ def recon_validate():
 
         # ── Step 3: Port Scanning (optional) ──
         port_results = {}
-        if do_ports:
+        if do_ports and (_time.time() - _start) < _DEADLINE:
             yield sse("progress", {"pct": 55, "label": f"Port scanning {len(alive_hosts)} hosts"})
             yield sse("log", {"type": "info", "msg": "Phase 3: Port Scanning (top 25 ports)"})
             port_results = PortScanner.bulk_scan(alive_hosts, max_workers=5)
@@ -128,7 +131,7 @@ def recon_validate():
 
         # ── Step 4: Attack Surface (optional) ──
         attack_results = {}
-        if do_attack:
+        if do_attack and (_time.time() - _start) < _DEADLINE:
             # Only scan top 10 alive hosts to avoid abuse
             top_hosts = alive_hosts[:10]
             yield sse("progress", {"pct": 70, "label": f"Attack surface detection ({len(top_hosts)} hosts)"})

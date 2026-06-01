@@ -12,11 +12,52 @@ import socket
 import ssl
 import json
 import re
+import ipaddress
 import concurrent.futures
-from urllib.request import urlopen, Request
+from urllib.request import urlopen, Request, build_opener, HTTPRedirectHandler
 from urllib.error import URLError, HTTPError
 from datetime import datetime
 from utils.logger import log
+
+
+# ═══════════════ SSRF GUARD ═══════════════
+class _NoRedirect(HTTPRedirectHandler):
+    """Refuse to auto-follow redirects — a scanned target could 30x to an
+    internal address (e.g. cloud metadata 169.254.169.254) and exfiltrate it
+    into the report. We surface the redirect target instead of chasing it."""
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+# Opener that does NOT follow redirects
+_NO_REDIRECT_OPENER = build_opener(_NoRedirect)
+
+
+def _is_internal_host(hostname):
+    """True if the hostname resolves to (or is) a private/loopback/link-local/
+    reserved address — used to block SSRF-style probes of internal services."""
+    try:
+        host = hostname.strip().split(" ")[0]
+        # If it's already an IP literal
+        try:
+            ip = ipaddress.ip_address(host)
+            return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
+        except ValueError:
+            pass
+        # Resolve and check every returned address
+        infos = socket.getaddrinfo(host, None)
+        for info in infos:
+            addr = info[4][0]
+            try:
+                ip = ipaddress.ip_address(addr)
+                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                    return True
+            except ValueError:
+                continue
+        return False
+    except Exception:
+        # If we can't resolve, treat as non-internal (DNS step handles dead hosts)
+        return False
 
 # ═══════════════ DNS RESOLVER ═══════════════
 class DNSResolver:
@@ -100,6 +141,12 @@ class HTTPProber:
             "probed_at": datetime.now().isoformat()
         }
 
+        # SSRF guard: never probe hosts that resolve to internal addresses
+        if _is_internal_host(hostname):
+            log.warning(f"HTTP probe skipped for internal host: {hostname}")
+            result["blocked"] = "internal address"
+            return result
+
         # Try HTTPS first, then HTTP
         for scheme in ["https", "http"]:
             url = f"{scheme}://{hostname}"
@@ -108,7 +155,9 @@ class HTTPProber:
                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
                     "Accept": "text/html,application/xhtml+xml"
                 })
-                resp = urlopen(req, timeout=timeout)
+                # Use the non-redirect opener so a 30x to an internal target
+                # is reported, not chased.
+                resp = _NO_REDIRECT_OPENER.open(req, timeout=timeout)
                 status = resp.getcode()
                 headers = {k.lower(): v for k, v in resp.getheaders()}
                 body = ""
@@ -116,6 +165,11 @@ class HTTPProber:
                     body = resp.read(8192).decode("utf-8", errors="ignore")
                 except Exception:
                     pass
+                finally:
+                    try:
+                        resp.close()
+                    except Exception:
+                        pass
 
                 info = {
                     "status": status,
@@ -130,10 +184,6 @@ class HTTPProber:
 
                 result[scheme] = info
                 result["alive"] = True
-
-                # Detect redirect
-                if resp.geturl() != url:
-                    result["redirect"] = resp.geturl()
 
                 # Extract title
                 title_match = re.search(r'<title[^>]*>([^<]+)</title>', body, re.I)
@@ -153,6 +203,13 @@ class HTTPProber:
                 break  # Success — don't try other scheme
 
             except HTTPError as e:
+                # Capture (but do not follow) redirects; record the target.
+                if e.code in (301, 302, 303, 307, 308):
+                    loc = e.headers.get("Location", "") if e.headers else ""
+                    result["redirect"] = loc
+                    result[scheme] = {"status": e.code, "url": url, "headers": {}}
+                    result["alive"] = True
+                    break
                 result[scheme] = {"status": e.code, "url": url, "headers": {}}
                 result["alive"] = True
                 # 403/401 still means it's alive and interesting
@@ -342,6 +399,11 @@ class AttackSurfaceDetector:
             "detected_at": datetime.now().isoformat()
         }
 
+        # SSRF guard: skip internal hosts entirely
+        if _is_internal_host(hostname):
+            log.warning(f"Attack-surface scan skipped for internal host: {hostname}")
+            return findings
+
         # Check admin paths
         for path in AttackSurfaceDetector.ADMIN_PATHS:
             status = AttackSurfaceDetector._check_path(hostname, path, timeout)
@@ -368,15 +430,20 @@ class AttackSurfaceDetector:
 
     @staticmethod
     def _check_path(hostname, path, timeout=3):
-        """Check if a path exists on a host"""
+        """Check if a path exists on a host (no redirect following)"""
         for scheme in ["https", "http"]:
             url = f"{scheme}://{hostname}{path}"
             try:
                 req = Request(url, headers={
                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
                 })
-                resp = urlopen(req, timeout=timeout)
-                return resp.getcode()
+                resp = _NO_REDIRECT_OPENER.open(req, timeout=timeout)
+                code = resp.getcode()
+                try:
+                    resp.close()
+                except Exception:
+                    pass
+                return code
             except HTTPError as e:
                 return e.code
             except Exception:

@@ -10,6 +10,7 @@ Scores consider:
 - Technology risk (outdated, misconfigured)
 """
 from datetime import datetime
+import re
 from utils.logger import log
 
 class RiskLevel:
@@ -140,7 +141,9 @@ class RiskScorer:
                 reasons.append("401 Unauthorized — auth required (potential target)")
 
         # ── 7. Hostname patterns ──
-        h = hostname.lower()
+        # Match on DNS labels (split on . - _) rather than raw substring, so
+        # "therapist.example.com" no longer matches "api", "latest" ≠ "test", etc.
+        labels = set(re.split(r'[.\-_]', hostname.lower()))
         sensitive_patterns = {
             "admin": ("Admin subdomain", 15),
             "api": ("API subdomain", 12),
@@ -158,7 +161,7 @@ class RiskScorer:
             "grafana": ("Grafana dashboard", 12),
         }
         for pattern, (reason, points) in sensitive_patterns.items():
-            if pattern in h:
+            if pattern in labels:
                 score += points
                 reasons.append(reason)
                 break
