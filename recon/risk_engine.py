@@ -249,16 +249,22 @@ class RiskScorer:
           - how_to_exploit: advisory steps from its most severe attack path
           - next_action    : one concrete next step, chosen by the dominant finding
         Purely analytical — no network calls. Authorized testing only.
+
+        Only hosts that scored LOW or above (>= 20) qualify — an INFO host is
+        background noise, not something to "investigate first", and flagging it
+        as such (red, urgent) is misleading. If nothing clears the bar this
+        returns [] and the report shows a neutral "no high-risk hosts" note.
         """
-        live = [a for a in scored_assets if a.get("score", 0) > 0]
+        # scored_assets is already sorted by score desc (assess_all)
+        candidates = [a for a in scored_assets if a.get("score", 0) >= 20]
         sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         out = []
-        for rank, a in enumerate(live[:3], 1):
+        for rank, a in enumerate(candidates[:3], 1):
             reasons = a.get("reasons", []) or []
             paths = a.get("attack_paths", []) or []
 
             # WHY — the strongest signals already detected on this host
-            why_matters = reasons[:3] if reasons else ["Live asset with exposed surface"]
+            why_matters = reasons[:3] if reasons else ["Elevated exposure on a live asset"]
 
             # HOW — steps from the most severe attack path (advisory)
             how_to_exploit = []

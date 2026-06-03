@@ -765,7 +765,7 @@ function startRecon(){
   es.addEventListener('recon_done',e=>{
     const d=JSON.parse(e.data);scanning=false;setSt('done');es.close();sndDone();
     if(d.summary){
-      window._lastReconData={scored_assets:d.scored_assets||[],summary:d.summary};
+      window._lastReconData={target:domain,scored_assets:d.scored_assets||[],summary:d.summary};
       const s=d.summary.stats;
       log('info',`Risk: <span style="color:#ff1744">${s.critical} critical</span> · <span style="color:#f16060">${s.high} high</span> · ${s.medium} medium · ${s.low} low`);
     }
@@ -811,10 +811,18 @@ async function exportAs(fmt){document.getElementById('export-menu').classList.re
   const d=await r.json();if(d.status==='ok'){log('info',`Exported → <span class="hl">${d.filepath}</span>`);sndDone()}}catch(e){log('err',e.message)}}
 
 // ═══════════ REPORT ═══════════
+// Recon data is stored globally and persists across scans. Only attach it to a
+// report when it was computed for THIS report's target — otherwise a stale
+// recon (e.g. an earlier run on a different domain) gets stapled onto an
+// unrelated report. Compare normalized hosts (same domain or sub/parent).
+function _normHost(s){return String(s||'').trim().toLowerCase().replace(/^[a-z]+:\/\//,'').replace(/\/.*$/,'').replace(/^www\./,'').replace(/\.$/,'')}
+function _sameTarget(a,b){a=_normHost(a);b=_normHost(b);if(!a||!b)return false;return a===b||a.endsWith('.'+b)||b.endsWith('.'+a)}
 async function generateReport(){if(!allRes.length){log('warn','No results');return}
   try{log('info','Generating report...');
     const target=document.getElementById('f-domain')?.value||document.getElementById('f-auto')?.value||document.getElementById('f-username')?.value||document.getElementById('f-subdomain')?.value||document.getElementById('f-phone')?.value||document.getElementById('f-dns')?.value||document.getElementById('f-ssl')?.value||document.getElementById('f-dorks')?.value||'Unknown';
-    const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({results:allRes,target:target,module:curMod,recon_data:window._lastReconData||null})});
+    const _rd=(window._lastReconData&&_sameTarget(window._lastReconData.target,target))?window._lastReconData:null;
+    if(window._lastReconData&&!_rd){log('warn',`Recon data was for a different target (${window._lastReconData.target||'?'}) — excluded from this report`)}
+    const r=await fetch('/api/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({results:allRes,target:target,module:curMod,recon_data:_rd})});
     const d=await r.json();if(d.status==='ok'){log('info','Converting to PDF...');
       const pr=await fetch('/api/report/pdf',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({html_filename:d.filename})});
       const pd=await pr.json();if(pd.status==='ok'){log('info',`PDF → <span class="val">${pd.filename}</span>`);

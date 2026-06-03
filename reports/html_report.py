@@ -72,6 +72,30 @@ class ReportGenerator:
         return out
 
     @staticmethod
+    def _base_domain(value):
+        """Best-effort host from a target/URL string, for scope checks.
+        Not a public-suffix parser — strips scheme/path/port/www/trailing dot
+        and lowercases. Enough to tell zu.edu.eg apart from ltuc.com."""
+        import re as _re
+        s = str(value or "").strip().lower()
+        s = _re.sub(r'^[a-z]+://', '', s)   # scheme
+        s = s.split('/')[0].split('?')[0]    # path / query
+        s = s.split('@')[-1]                 # strip any creds / email local part
+        s = s.split(':')[0]                  # port
+        s = s.strip().strip('.')
+        if s.startswith('www.'):
+            s = s[4:]
+        return s
+
+    @staticmethod
+    def _host_in_scope(hostname, base):
+        """True if hostname is the target or shares its domain (sub/parent)."""
+        h = ReportGenerator._base_domain(hostname)
+        if not h or not base:
+            return False
+        return h == base or h.endswith('.' + base) or base.endswith('.' + h)
+
+    @staticmethod
     def generate_html(results, target, module, recon_data=None):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -384,11 +408,28 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
         if recon_data:
             scored = recon_data.get("scored_assets", [])
             summary = recon_data.get("summary", {})
+            # ── Integrity guard ──────────────────────────────────────────────
+            # Only keep recon hosts that belong to THIS report's target. Stops a
+            # stale/foreign recon (e.g. an earlier run on a different domain)
+            # from being stapled onto an unrelated report. Only enforced when the
+            # target is domain-like (skip for username/phone/etc. targets).
+            base = ReportGenerator._base_domain(target)
+            if base and "." in base and scored:
+                in_scope = [a for a in scored
+                            if ReportGenerator._host_in_scope(a.get("hostname", ""), base)]
+                if len(in_scope) != len(scored):
+                    log.warning(
+                        f"Report: dropped {len(scored) - len(in_scope)} recon host(s) "
+                        f"not under target '{base}' (out-of-scope recon data)")
+                    scored = in_scope
+                    # Recompute the summary so stats/targets reflect in-scope hosts only
+                    from recon.risk_engine import RiskScorer
+                    summary = RiskScorer.executive_summary(scored) if scored else {}
             if scored:
                 stats = summary.get("stats", {})
                 html += f'''
 <div class="sec">
-<div class="sec-h"><span class="sec-icon">🛡️</span><span class="sec-title">Risk Assessment</span><span class="sec-count">{len(scored)} hosts analyzed</span></div>'''
+<div class="sec-h"><span class="sec-icon">🛡️</span><span class="sec-title">Risk Assessment</span><span class="sec-count">{len(scored)} host{"s" if len(scored) != 1 else ""} analyzed</span></div>'''
 
                 # Summary bar
                 if stats:
@@ -401,27 +442,42 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
 <span><span class="conf-dot" style="background:#3ecf8e"></span>{stats.get("low",0)} Low</span>
 </div></div>'''
 
-                # ═══════════════ TOP 3 TARGETS (attacker mindset) ═══════════════
+                # ═══════════════ PRIORITY TARGETS (attacker mindset) ═══════════════
+                # Only hosts scored LOW+ reach here (risk_engine._top_3_targets).
+                # Theme + heading follow the HIGHEST severity actually present, so an
+                # all-LOW result never wears critical-red "investigate first" styling.
                 top_targets = summary.get("top_3_targets", [])
+                level_color = {"critical": "#dc2626", "high": "#dc2626", "medium": "#d97706",
+                               "low": "#2563eb", "info": "#64748b"}
                 if top_targets:
-                    html += '''<div style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border-left:4px solid #dc2626;padding:16px;margin-bottom:16px;border-radius:6px">
-<h4 style="color:#991b1b;margin-bottom:12px;font-size:13px;text-transform:uppercase;letter-spacing:1px">🎯 TOP 3 Targets to Investigate First</h4>'''
+                    sev_order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+                    top_level = max((t.get("level", "info") for t in top_targets),
+                                    key=lambda l: sev_order.get(l, 0))
+                    accent, grad, head_c, heading = {
+                        "critical": ("#dc2626", "#fef2f2,#fee2e2", "#991b1b", "Top Targets to Investigate First"),
+                        "high":     ("#dc2626", "#fef2f2,#fee2e2", "#991b1b", "Top Targets to Investigate First"),
+                        "medium":   ("#d97706", "#fffbeb,#fef3c7", "#92400e", "Priority Targets"),
+                        "low":      ("#2563eb", "#eff6ff,#dbeafe", "#1e40af", "Notable Targets"),
+                    }.get(top_level, ("#2563eb", "#eff6ff,#dbeafe", "#1e40af", "Notable Targets"))
+                    html += f'''<div style="background:linear-gradient(135deg,{grad});border-left:4px solid {accent};padding:16px;margin-bottom:16px;border-radius:6px">
+<h4 style="color:{head_c};margin-bottom:12px;font-size:13px;text-transform:uppercase;letter-spacing:1px">🎯 {heading}</h4>'''
                     for t in top_targets:
                         rank = t.get("rank", "?")
                         hostname = escape(t.get("hostname", "?"))
                         score = t.get("score", 0)
                         level = t.get("level", "info")
+                        badge_c = level_color.get(level, "#64748b")
                         why = t.get("why_matters", [])
                         how = t.get("how_to_exploit", [])
                         next_step = escape(t.get("next_action", ""))
                         html += f'''<div style="background:white;padding:12px;margin-bottom:10px;border-radius:4px;box-shadow:0 1px 3px rgba(0,0,0,0.1)">
 <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
-<span style="background:#dc2626;color:white;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700">{rank}</span>
+<span style="background:{accent};color:white;width:26px;height:26px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700">{rank}</span>
 <span style="font-family:var(--mono);font-weight:600;font-size:13px">{hostname}</span>
-<span style="margin-left:auto;background:#dc2626;color:white;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">{score}/100 {level.upper()}</span>
+<span style="margin-left:auto;background:{badge_c};color:white;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">{score}/100 {level.upper()}</span>
 </div>
 <div style="margin-left:36px;font-size:11px;color:#444">
-<div style="margin-bottom:6px"><b style="color:#dc2626">Why it matters:</b><ul style="margin:4px 0 0 16px;padding:0">'''
+<div style="margin-bottom:6px"><b style="color:{accent}">Why it matters:</b><ul style="margin:4px 0 0 16px;padding:0">'''
                         for w in why[:3]:
                             html += f'<li>{escape(w)}</li>'
                         html += '</ul></div>'
@@ -432,9 +488,18 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
                             html += '</ul></div>'
                         html += f'<div><b style="color:#059669">Next action:</b> {next_step}</div></div></div>'
                     html += '</div>'
+                else:
+                    # Recon ran but nothing scored LOW or above — say so plainly
+                    # instead of leaving a confusing empty (or red) section.
+                    html += '''<div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:14px 16px;margin-bottom:16px;border-radius:6px">
+<b style="color:#15803d;font-size:12px">No high-risk hosts.</b>
+<span style="color:#444;font-size:12px"> All live assets scored INFO — no exposed admin panels, risky ports, or missing-header combinations that warrant priority investigation.</span>
+</div>'''
 
-                # Individual host cards
-                for a in scored[:15]:  # Top 15
+                # Individual host cards — LOW+ only; INFO hosts have no reasons/
+                # paths and would render as empty rows duplicating the host list.
+                ranked_hosts = [a for a in scored if a.get("score", 0) >= 20][:15]
+                for a in ranked_hosts:
                     level = a.get("level", "info")
                     score = a.get("score", 0)
                     hostname = escape(a.get("hostname", "?"))

@@ -106,3 +106,45 @@ class TestGenerateHTML:
             html = f.read()
         assert "<script>alert(1)</script>" not in html
         assert "&lt;script&gt;" in html
+
+
+class TestReconScopeGuard:
+    """Recon data for a different target must never appear in the report
+    (regression: a zu.edu.eg report showed ltuc.com under Risk Assessment)."""
+
+    def _recon(self, hostname):
+        from recon.risk_engine import RiskScorer
+        asset = RiskScorer.score_asset({
+            "hostname": hostname, "alive": True,
+            "ports": [{"port": 21, "state": "open"}],
+            "attack_surface": {"admin_panels": [], "login_pages": [], "api_endpoints": []},
+            "technology": [], "missing_security_headers": [], "http_info": {"status": 200},
+        })
+        scored = [asset]
+        return {"scored_assets": scored, "summary": RiskScorer.executive_summary(scored)}
+
+    def test_base_domain(self):
+        assert ReportGenerator._base_domain("zu.edu.eg/") == "zu.edu.eg"
+        assert ReportGenerator._base_domain("https://www.zu.edu.eg/x?y") == "zu.edu.eg"
+
+    def test_in_scope(self):
+        assert ReportGenerator._host_in_scope("admin.zu.edu.eg", "zu.edu.eg")
+        assert not ReportGenerator._host_in_scope("ltuc.com", "zu.edu.eg")
+
+    def test_foreign_recon_dropped(self):
+        # Report target zu.edu.eg, but recon ran on ltuc.com → must be excluded
+        res = ReportGenerator.generate_html(
+            [{"value": "zu.edu.eg", "type": "subdomain", "source": "crtsh", "confidence": 0.9}],
+            "zu.edu.eg", "auto", recon_data=self._recon("ltuc.com"))
+        html = open(res["filepath"], encoding="utf-8").read()
+        assert "ltuc.com" not in html            # foreign host never rendered
+        assert "🛡️" not in html             # Risk Assessment section header dropped
+
+    def test_matching_recon_kept(self):
+        # Recon host under the same domain → kept and rendered
+        res = ReportGenerator.generate_html(
+            [{"value": "zu.edu.eg", "type": "subdomain", "source": "crtsh", "confidence": 0.9}],
+            "zu.edu.eg", "auto", recon_data=self._recon("ftp.zu.edu.eg"))
+        html = open(res["filepath"], encoding="utf-8").read()
+        assert "ftp.zu.edu.eg" in html
+        assert "🛡️" in html              # Risk Assessment section present

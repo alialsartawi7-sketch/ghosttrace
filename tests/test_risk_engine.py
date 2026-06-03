@@ -214,3 +214,24 @@ class TestExecutiveSummary:
         summary = RiskScorer.executive_summary([])
         assert summary["top_risks"] == []
         assert summary.get("top_3_targets", []) == [] or "top_3_targets" not in summary
+
+    def test_info_only_returns_no_targets(self):
+        # Alive hosts with nothing notable score INFO (<20). They must NOT be
+        # surfaced as "investigate first" targets (the misleading-red-box bug).
+        infos = [
+            RiskScorer.score_asset(_make_asset(hostname="a.example.com",
+                                               ports=[{"port": 8080, "state": "open"}])),
+            RiskScorer.score_asset(_make_asset(hostname="b.example.com")),
+        ]
+        assert all(x["level"] == "info" for x in infos)
+        summary = RiskScorer.executive_summary(infos)
+        assert summary["top_3_targets"] == []
+
+    def test_low_host_qualifies(self):
+        # An FTP host scores LOW (>=20) and SHOULD appear as a target.
+        ftp = RiskScorer.score_asset(_make_asset(hostname="ftp.example.com",
+                                                 ports=[{"port": 21, "state": "open"}]))
+        assert ftp["score"] >= 20
+        summary = RiskScorer.executive_summary([ftp])
+        hosts = [t["hostname"] for t in summary["top_3_targets"]]
+        assert "ftp.example.com" in hosts
