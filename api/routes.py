@@ -58,6 +58,15 @@ def _sse_response(generator):
     return Response(stream_with_context(generator), mimetype="text/event-stream",
                     headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
+def _parse_timeout(raw):
+    """Parse a user-supplied per-scan timeout (seconds). Returns None when not
+    provided/invalid (-> Config default), otherwise clamps to a sane 30..1800s."""
+    try:
+        t = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return max(30, min(t, 1800))
+
 @scans_bp.route("/api/scan/email")
 def scan_email():
     try:
@@ -68,7 +77,8 @@ def scan_email():
         return _sse_error(e.message)
     use_tor = request.args.get("tor", "0") == "1"
     use_api = request.args.get("use_api", "0") == "1"
-    return _sse_response(run_tool_scan("theharvester", domain, "email", source=source, limit=limit, tor=use_tor, use_api=use_api))
+    timeout = _parse_timeout(request.args.get("timeout"))
+    return _sse_response(run_tool_scan("theharvester", domain, "email", source=source, limit=limit, tor=use_tor, use_api=use_api, timeout=timeout))
 
 @scans_bp.route("/api/scan/username")
 def scan_username():
@@ -256,7 +266,8 @@ def scan_subdomain():
         return _sse_error(e.message)
     use_tor = request.args.get("tor", "0") == "1"
     use_api = request.args.get("use_api", "0") == "1"
-    return _sse_response(run_tool_scan("theharvester", domain, "subdomain", source="all", limit="500", tor=use_tor, use_api=use_api))
+    timeout = _parse_timeout(request.args.get("timeout"))
+    return _sse_response(run_tool_scan("theharvester", domain, "subdomain", source="all", limit="500", tor=use_tor, use_api=use_api, timeout=timeout))
 
 @scans_bp.route("/api/auto-detect")
 def auto_detect():

@@ -304,6 +304,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
             <input id="f-auto" type="text" placeholder="domain, email, username, or file path — auto detects" oninput="autoDetect()"></div>
           <div class="tor-toggle"><label class="tor-cb"><input type="checkbox" id="tor-auto"><span class="slider"></span></label><span class="tor-label">Tor</span></div>
           <div class="tor-toggle" title="Add keyed sources (Shodan/VirusTotal/...) — off by default for fast, reliable scans"><label class="tor-cb"><input type="checkbox" id="apikeys-auto"><span class="slider"></span></label><span class="tor-label">Use API Keys</span></div>
+          <div class="fd" style="width:90px" title="Max seconds per tool before timeout"><span class="fl">Timeout (s)</span><input id="timeout-auto" type="number" min="30" max="1800" value="240"></div>
           <button class="btn btn-p" onclick="autoScan()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21"/></svg>Auto Scan</button>
           <button class="btn btn-d" onclick="abortScan()">Abort</button>
         </div>
@@ -316,6 +317,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
           <div class="fd" style="width:60px"><span class="fl">Limit</span><input id="f-limit" value="500"></div>
           <div class="tor-toggle"><label class="tor-cb"><input type="checkbox" id="tor-email"><span class="slider"></span></label><span class="tor-label">Tor</span></div>
           <div class="tor-toggle" title="Add keyed sources (Shodan/VirusTotal/...) — off by default"><label class="tor-cb"><input type="checkbox" id="apikeys-email"><span class="slider"></span></label><span class="tor-label">Use API Keys</span></div>
+          <div class="fd" style="width:90px" title="Max seconds per tool before timeout"><span class="fl">Timeout (s)</span><input id="timeout-email" type="number" min="30" max="1800" value="240"></div>
           <button class="btn btn-p" onclick="startScan()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21"/></svg>Scan</button>
           <button class="btn btn-d" onclick="abortScan()">Abort</button>
         </div>
@@ -364,6 +366,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
           <div class="fd grow"><span class="fl">Domain</span><input id="f-subdomain" placeholder="example.com"></div>
           <div class="tor-toggle"><label class="tor-cb"><input type="checkbox" id="tor-sub"><span class="slider"></span></label><span class="tor-label">Tor</span></div>
           <div class="tor-toggle" title="Add keyed sources (Shodan/VirusTotal/...) — off by default"><label class="tor-cb"><input type="checkbox" id="apikeys-sub"><span class="slider"></span></label><span class="tor-label">Use API Keys</span></div>
+          <div class="fd" style="width:90px" title="Max seconds per tool before timeout"><span class="fl">Timeout (s)</span><input id="timeout-sub" type="number" min="30" max="1800" value="240"></div>
           <button class="btn btn-p" onclick="startScan()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21"/></svg>Discover</button>
           <button class="btn btn-d" onclick="abortScan()">Abort</button>
         </div>
@@ -691,10 +694,11 @@ async function autoScan(){
     log('info',`Auto-detected: <span class="hl">${d.type}</span> → ${d.cleaned||inp}`);
     const torA=document.getElementById('tor-auto').checked?'1':'0';
     const apiA=document.getElementById('apikeys-auto').checked?'1':'0';
+    const toA=document.getElementById('timeout-auto').value||'240';
     if(d.type==='domain'||d.type==='email'){
       // Chain: Email/Subs → DNS → SSL
       log('info','Phase 1/3: Email & Subdomain harvesting...');
-      await connectSSE(`/api/scan/email?domain=${encodeURIComponent(d.cleaned)}&source=all&limit=500&tor=${torA}&use_api=${apiA}`);
+      await connectSSE(`/api/scan/email?domain=${encodeURIComponent(d.cleaned)}&source=all&limit=500&tor=${torA}&use_api=${apiA}&timeout=${toA}`);
       if(!scanning){scanning=true;setSt('scanning')}
       log('info','Phase 2/3: DNS records...');
       await connectSSE(`/api/scan/dns?domain=${encodeURIComponent(d.cleaned)}`);
@@ -722,7 +726,8 @@ function startScan(){if(scanning)return;
   if(curMod==='email'){const d=document.getElementById('f-domain').value.trim();if(!d){log('err','Enter domain!');scanning=false;setSt('ready');return}
     const tor=document.getElementById('tor-email').checked?'1':'0';
     const api=document.getElementById('apikeys-email').checked?'1':'0';
-    url=`/api/scan/email?domain=${encodeURIComponent(d)}&source=${encodeURIComponent(document.getElementById('f-source').value)}&limit=${encodeURIComponent(document.getElementById('f-limit').value||'500')}&tor=${tor}&use_api=${api}`}
+    const to=document.getElementById('timeout-email').value||'240';
+    url=`/api/scan/email?domain=${encodeURIComponent(d)}&source=${encodeURIComponent(document.getElementById('f-source').value)}&limit=${encodeURIComponent(document.getElementById('f-limit').value||'500')}&tor=${tor}&use_api=${api}&timeout=${to}`}
   else if(curMod==='username'){const u=document.getElementById('f-username').value.trim();if(!u){log('err','Enter username!');scanning=false;setSt('ready');return}
     const tool=document.getElementById('f-usertool').value;const tor=document.getElementById('tor-user').checked?'1':'0';
     const sites=document.getElementById('f-sites').value.trim();
@@ -734,7 +739,8 @@ function startScan(){if(scanning)return;
   else if(curMod==='subdomain'){const d=document.getElementById('f-subdomain').value.trim();if(!d){log('err','Enter domain!');scanning=false;setSt('ready');return}
     const tor=document.getElementById('tor-sub').checked?'1':'0';
     const api=document.getElementById('apikeys-sub').checked?'1':'0';
-    url=`/api/scan/subdomain?domain=${encodeURIComponent(d)}&tor=${tor}&use_api=${api}`}
+    const to=document.getElementById('timeout-sub').value||'240';
+    url=`/api/scan/subdomain?domain=${encodeURIComponent(d)}&tor=${tor}&use_api=${api}&timeout=${to}`}
   else if(curMod==='dns'){const d=document.getElementById('f-dns').value.trim();if(!d){log('err','Enter domain!');scanning=false;setSt('ready');return}
     url=`/api/scan/dns?domain=${encodeURIComponent(d)}`}
   else if(curMod==='ssl'){const d=document.getElementById('f-ssl').value.trim();if(!d){log('err','Enter domain!');scanning=false;setSt('ready');return}

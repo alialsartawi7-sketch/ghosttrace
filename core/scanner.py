@@ -42,6 +42,7 @@ def _blend_confidence(item):
 
 def run_tool_scan(tool_name, target, module, **opts):
     """Generator that runs a tool scan and yields SSE events."""
+    scan_timeout = opts.pop("timeout", None)  # per-scan override; None -> Config default
     # Rate limit
     if not scan_limiter.allow("scan"):
         log.warning(f"Rate limit hit for {tool_name}/{target}")
@@ -87,7 +88,7 @@ def run_tool_scan(tool_name, target, module, **opts):
 
     try:
         for kind, payload in ExecutionEngine.stream(
-                cmd, env=tool.get_env(), scan_ref=scan_ref,
+                cmd, env=tool.get_env(), scan_ref=scan_ref, timeout=scan_timeout,
                 stop_check=lambda: scan_ref.get("stop")):
 
             if kind == "done":
@@ -148,7 +149,7 @@ def run_tool_scan(tool_name, target, module, **opts):
             log.error(f"Scan {scan_id[:8]} finalize error: {e}")
 
     if timed_out:
-        yield sse("log", {"type": "warn", "msg": f"Timed out after {Config.TOOL_TIMEOUT}s"})
+        yield sse("log", {"type": "warn", "msg": f"Timed out after {scan_timeout or Config.TOOL_TIMEOUT}s"})
 
     found_count = scan_ref["count"]
     status = "aborted" if (aborted or scan_ref.get("stop")) else "complete"
