@@ -61,6 +61,31 @@ class Config:
     def init(cls):
         for d in [cls.BASE_DIR, cls.EXPORT_DIR, cls.LOG_DIR]:
             os.makedirs(d, exist_ok=True)
+        cls.augment_tool_path()
+
+    @classmethod
+    def augment_tool_path(cls):
+        """Make tool binaries discoverable no matter how the app was launched.
+        Adds common install locations (pipx shims + isolated venvs, ~/.local/bin,
+        standard system dirs) to PATH so `which`/subprocess can find tools like
+        maigret, sherlock and phoneinfoga even when started from a minimal
+        environment (desktop launcher, systemd, fresh shell without pipx PATH)."""
+        import glob
+        home = os.path.expanduser("~")
+        extra = [
+            os.path.join(home, ".local", "bin"),
+            "/usr/local/bin", "/usr/local/sbin",
+            "/usr/bin", "/usr/sbin", "/bin", "/sbin",
+            "/snap/bin",
+        ]
+        # pipx installs each tool in its own venv: ~/.local/share/pipx/venvs/<tool>/bin
+        extra += glob.glob(os.path.join(home, ".local", "share", "pipx", "venvs", "*", "bin"))
+        parts = os.environ.get("PATH", "").split(os.pathsep)
+        parts = [p for p in parts if p]
+        for d in extra:
+            if os.path.isdir(d) and d not in parts:
+                parts.append(d)
+        os.environ["PATH"] = os.pathsep.join(parts)
 
     @classmethod
     def load_api_keys(cls):
