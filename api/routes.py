@@ -67,7 +67,8 @@ def scan_email():
     except ValidationError as e:
         return _sse_error(e.message)
     use_tor = request.args.get("tor", "0") == "1"
-    return _sse_response(run_tool_scan("theharvester", domain, "email", source=source, limit=limit, tor=use_tor))
+    use_api = request.args.get("use_api", "0") == "1"
+    return _sse_response(run_tool_scan("theharvester", domain, "email", source=source, limit=limit, tor=use_tor, use_api=use_api))
 
 @scans_bp.route("/api/scan/username")
 def scan_username():
@@ -254,7 +255,8 @@ def scan_subdomain():
     except ValidationError as e:
         return _sse_error(e.message)
     use_tor = request.args.get("tor", "0") == "1"
-    return _sse_response(run_tool_scan("theharvester", domain, "subdomain", source="all", limit="500", tor=use_tor))
+    use_api = request.args.get("use_api", "0") == "1"
+    return _sse_response(run_tool_scan("theharvester", domain, "subdomain", source="all", limit="500", tor=use_tor, use_api=use_api))
 
 @scans_bp.route("/api/auto-detect")
 def auto_detect():

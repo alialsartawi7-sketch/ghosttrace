@@ -16,8 +16,13 @@ class HarvesterAdapter(ToolAdapter):
         use_tor = opts.get("tor", False)
         cmd = [self.cmd, "-d", target, "-l", str(limit)]
         if source == "all":
-            # free sources + any keyed source the user has configured a key for
-            sources = list(Config.FREE_SOURCES) + Config.configured_key_sources()
+            sources = list(Config.FREE_SOURCES)
+            # Keyed sources (shodan/virustotal/...) are added ONLY when the user
+            # enables "Use API Keys" AND has configured a key. Default-off keeps
+            # scans fast and resilient — a flaky keyed source (e.g. a rate-limited
+            # VirusTotal free tier) can't break the free-source run.
+            if opts.get("use_api"):
+                sources += Config.configured_key_sources()
             cmd += ["-b", ",".join(sources)]
         else:
             cmd += ["-b", source]
