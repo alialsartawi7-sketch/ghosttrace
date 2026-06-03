@@ -35,6 +35,19 @@ class Config:
     ]
     IGNORE_EMAILS = {"cmartorella@edge-security.com", "cmartorella@gmail.com"}
 
+    # theHarvester sources that REQUIRE an API key. Maps the config-key saved by
+    # the settings UI -> (theHarvester "-b" source name, api-keys.yaml section).
+    # theHarvester reads keys from ~/.theHarvester/api-keys.yaml, NOT env vars,
+    # so keys saved in the UI are synced into that file (see sync_harvester_keys).
+    HARVESTER_KEYED_SOURCES = {
+        "shodan":         ("shodan",         "shodan"),
+        "hunter":         ("hunter",         "hunter"),
+        "securitytrails": ("securityTrails", "securityTrails"),
+        "virustotal":     ("virustotal",     "virustotal"),
+        "censys":         ("censys",         "censys"),  # value entered as "id:secret"
+    }
+    THEHARVESTER_KEYS_PATH = os.path.expanduser("~/.theHarvester/api-keys.yaml")
+
     # Intelligence
     SOURCE_WEIGHTS = {
         "crtsh": 0.9, "certspotter": 0.9, "dnsdumpster": 0.8,
@@ -67,6 +80,73 @@ class Config:
             os.chmod(cls.CONFIG_FILE, 0o600)
         except OSError:
             pass
+        # Propagate keys into theHarvester's own config so it actually uses them.
+        try:
+            cls.sync_harvester_keys(keys)
+        except Exception:
+            pass
+
+    @classmethod
+    def configured_key_sources(cls, keys=None):
+        """theHarvester '-b' source names whose API key is set (non-empty)."""
+        keys = cls.load_api_keys() if keys is None else keys
+        out = []
+        for cfg_name, (src, _section) in cls.HARVESTER_KEYED_SOURCES.items():
+            if str(keys.get(cfg_name, "") or "").strip():
+                out.append(src)
+        return out
+
+    @classmethod
+    def sync_harvester_keys(cls, keys=None):
+        """Write configured API keys into theHarvester's api-keys.yaml so the tool
+        actually consumes them. Merges into the existing structure and never
+        clobbers sections GhostTrace doesn't manage. Returns synced section names."""
+        keys = cls.load_api_keys() if keys is None else keys
+        try:
+            import yaml
+        except ImportError:
+            return []
+        path = cls.THEHARVESTER_KEYS_PATH
+        data = {}
+        if os.path.exists(path):
+            try:
+                with open(path) as f:
+                    data = yaml.safe_load(f) or {}
+            except Exception:
+                data = {}
+        if not isinstance(data, dict):
+            data = {}
+        api = data.get("apikeys")
+        if not isinstance(api, dict):
+            api = {}
+        synced = []
+        for cfg_name, (_src, section) in cls.HARVESTER_KEYED_SOURCES.items():
+            val = str(keys.get(cfg_name, "") or "").strip()
+            if not val:
+                continue
+            if section == "censys":
+                # Censys needs id + secret, entered in the UI as "id:secret"
+                if ":" in val:
+                    cid, _, csecret = val.partition(":")
+                    api["censys"] = {"id": cid.strip(), "secret": csecret.strip()}
+                    synced.append("censys")
+                continue
+            api[section] = {"key": val}
+            synced.append(section)
+        if not synced:
+            return []
+        data["apikeys"] = api
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False)
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
+        except Exception:
+            return []
+        return synced
 
     @classmethod
     def load_auth_hash(cls):

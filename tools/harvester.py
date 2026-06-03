@@ -10,22 +10,15 @@ class HarvesterAdapter(ToolAdapter):
     description = "Email and subdomain harvester"
     _EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
 
-    # theHarvester env var names for API keys
-    KEY_ENV_MAP = {
-        "shodan": "SHODAN_KEY",
-        "hunter": "HUNTER_KEY",
-        "sectrails": "SECURITYTRAILS_KEY",
-        "virustotal": "VIRUSTOTAL_KEY",
-        "censys": "CENSYS_API_ID",
-    }
-
     def build_command(self, target, **opts):
         source = opts.get("source", "all")
         limit = opts.get("limit", "500")
         use_tor = opts.get("tor", False)
         cmd = [self.cmd, "-d", target, "-l", str(limit)]
         if source == "all":
-            cmd += ["-b", ",".join(Config.FREE_SOURCES)]
+            # free sources + any keyed source the user has configured a key for
+            sources = list(Config.FREE_SOURCES) + Config.configured_key_sources()
+            cmd += ["-b", ",".join(sources)]
         else:
             cmd += ["-b", source]
         if use_tor:
@@ -33,15 +26,15 @@ class HarvesterAdapter(ToolAdapter):
         return cmd
 
     def get_env(self):
-        """BUG 2 FIX: Inject API keys as env vars for theHarvester"""
+        """API keys are consumed by theHarvester via ~/.theHarvester/api-keys.yaml
+        (NOT env vars), so we sync saved keys into that file before each run and
+        pass the environment through so the subprocess inherits PATH etc."""
         import os
-        env = os.environ.copy()
-        keys = Config.load_api_keys()
-        for config_name, env_name in self.KEY_ENV_MAP.items():
-            val = keys.get(config_name, "").strip()
-            if val:
-                env[env_name] = val
-        return env
+        try:
+            Config.sync_harvester_keys()
+        except Exception:
+            pass
+        return os.environ.copy()
 
     # Q1 FIX: Compiled regex — survives output format changes
     _SEC_EMAIL = re.compile(r'\[\*\].*[Ee]mails?\s+found', re.I)
