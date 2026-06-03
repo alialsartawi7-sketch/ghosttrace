@@ -2,50 +2,49 @@
 # by Alsartawi
 
 """
-Architecture:
+Architecture (reflects the actual modules in this package):
+
 ghosttrace/
-├── app.py                  ← Entry point
-├── config.py               ← Configuration management
-├── core/
-│   ├── __init__.py
-│   ├── engine.py           ← Tool execution engine (sandboxed)
-│   ├── scanner.py          ← Scan orchestrator
-│   └── pipeline.py         ← Auto-pipeline & scan templates
-├── tools/
-│   ├── __init__.py
-│   ├── base.py             ← Base tool adapter (plugin interface)
-│   ├── harvester.py        ← theHarvester adapter
-│   ├── sherlock_tool.py    ← Sherlock adapter
-│   ├── exiftool.py         ← ExifTool adapter
-│   └── registry.py         ← Plugin registry
+├── app.py                  ← Entry point (Flask app, auth, CSRF, blueprints)
+├── config.py               ← Config + at-rest key encryption (Fernet)
+├── build.sh                ← Build script (package into a single executable)
 ├── api/
-│   ├── __init__.py
-│   ├── scans.py            ← Scan endpoints (Blueprint)
-│   ├── history.py          ← History endpoints
-│   ├── exports.py          ← Export/Report endpoints
-│   ├── system.py           ← System/settings endpoints
-│   └── cli.py              ← CLI mode endpoint
+│   ├── routes.py           ← Scan / history / export / system endpoints (Blueprints)
+│   └── recon_routes.py     ← Active recon pipeline endpoint (SSE)
+├── core/
+│   ├── engine.py           ← Sandboxed subprocess execution engine (timeouts, kill)
+│   ├── scanner.py          ← Scan orchestrator
+│   └── differ.py           ← Scan-to-scan diffing
+├── tools/                  ← Plugin adapters (one per OSINT tool)
+│   ├── base.py             ← Base tool adapter (plugin interface)
+│   ├── registry.py         ← Plugin registry
+│   ├── harvester.py        ← theHarvester
+│   ├── sherlock_tool.py    ← Sherlock
+│   ├── maigret_tool.py     ← Maigret
+│   ├── exiftool.py         ← ExifTool
+│   ├── phoneinfoga_tool.py ← PhoneInfoga
+│   ├── whois_tool.py       ← WHOIS
+│   ├── dns_records.py      ← DNS records (dig)
+│   ├── ssl_cert.py         ← SSL certificate (openssl)
+│   └── google_dorks.py     ← Google dorks
 ├── database/
-│   ├── __init__.py
-│   ├── models.py           ← Database models (structured layer)
-│   ├── manager.py          ← DB operations with connection pooling
-│   └── migrations.py       ← Schema management
+│   └── manager.py          ← SQLite operations + connection handling
 ├── intelligence/
-│   ├── __init__.py
-│   ├── correlator.py       ← Entity correlation engine
-│   ├── scorer.py           ← Confidence scoring
-│   └── graph.py            ← Graph data builder
+│   └── correlator.py       ← Entity correlation, confidence scoring, graph builder
+├── recon/
+│   ├── __init__.py         ← Active recon (DNS / HTTP / port probing, SSRF guard)
+│   └── risk_engine.py      ← Risk scoring, attack paths, executive summary
 ├── reports/
-│   ├── __init__.py
-│   ├── html_report.py      ← HTML report generator
-│   └── pdf_report.py       ← PDF converter
+│   └── html_report.py      ← HTML / PDF report generator (weasyprint → wkhtmltopdf)
 ├── utils/
-│   ├── __init__.py
 │   ├── validators.py       ← Input validation & sanitization
-│   ├── security.py         ← Security utilities
-│   └── logger.py           ← Logging system
+│   ├── security.py         ← Output sanitization & security utilities
+│   └── logger.py           ← Logging
 ├── templates/
-│   └── index.html          ← Frontend
+│   └── index.html          ← Frontend (single-page UI)
+├── static/                 ← Icons, favicons, PWA assets
+├── tests/                  ← pytest suite
 ├── requirements.txt
+├── requirements-dev.txt
 └── README.md
 """
