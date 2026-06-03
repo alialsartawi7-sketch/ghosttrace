@@ -233,9 +233,72 @@ class RiskScorer:
                 "level": a["level"],
                 "top_reason": a["reasons"][0] if a["reasons"] else "General exposure"
             } for a in top5],
+            "top_3_targets": RiskScorer._top_3_targets(scored_assets),
             "recommendations": recommendations,
             "assessed_at": datetime.now().isoformat()
         }
+
+    @staticmethod
+    def _top_3_targets(scored_assets):
+        """Build the 'investigate first' briefing for the top live assets.
+
+        Consumes assets already scored by score_asset() (so reasons +
+        attack_paths are present) and turns the strongest three into an
+        analyst-facing summary the report renders under 'TOP 3 Targets':
+          - why_matters   : the strongest signals already detected on the host
+          - how_to_exploit: advisory steps from its most severe attack path
+          - next_action    : one concrete next step, chosen by the dominant finding
+        Purely analytical — no network calls. Authorized testing only.
+        """
+        live = [a for a in scored_assets if a.get("score", 0) > 0]
+        sev_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+        out = []
+        for rank, a in enumerate(live[:3], 1):
+            reasons = a.get("reasons", []) or []
+            paths = a.get("attack_paths", []) or []
+
+            # WHY — the strongest signals already detected on this host
+            why_matters = reasons[:3] if reasons else ["Live asset with exposed surface"]
+
+            # HOW — steps from the most severe attack path (advisory)
+            how_to_exploit = []
+            if paths:
+                top_path = sorted(
+                    paths, key=lambda p: sev_rank.get(p.get("severity", "medium"), 2)
+                )[0]
+                how_to_exploit = (top_path.get("steps", []) or [])[:2]
+
+            out.append({
+                "rank": rank,
+                "hostname": a.get("hostname", "?"),
+                "score": a.get("score", 0),
+                "level": a.get("level", "info"),
+                "why_matters": why_matters,
+                "how_to_exploit": how_to_exploit,
+                "next_action": RiskScorer._next_action(reasons, paths),
+            })
+        return out
+
+    @staticmethod
+    def _next_action(reasons, paths):
+        """Pick one concrete next step from the detected signals (no network calls)."""
+        blob = " ".join(reasons).lower()
+        path_names = " ".join(p.get("path", "") for p in paths).lower()
+        if "admin panel" in blob or "admin panel" in path_names:
+            return ("Check the admin panel for default credentials, then search NVD "
+                    "for CVEs matching the detected technology stack.")
+        if "legacy" in path_names or "telnet" in blob or "ftp exposed" in blob:
+            return "Verify anonymous / cleartext access on the legacy service before anything else."
+        if "api enumeration" in path_names or "api endpoint" in blob or "api subdomain" in blob:
+            return ("Enumerate the API endpoint for IDOR and look for an exposed schema "
+                    "(/swagger, /openapi.json, /api-docs).")
+        if "brute force" in path_names or "login page" in blob:
+            return "Run a controlled credential test against the login page — confirm rate-limiting exists first."
+        if "rdp exposed" in blob:
+            return "Restrict RDP to VPN / whitelisted IPs, then check the exposed service version against known CVEs."
+        if any(db in blob for db in ("redis", "mongodb", "mysql exposed", "postgresql exposed")):
+            return "Confirm whether the exposed database requires auth — unauthenticated access is the priority check."
+        return "Manually validate the top finding above and document it within the authorized scope."
 
 
 class AttackPathGenerator:

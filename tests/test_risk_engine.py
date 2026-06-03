@@ -163,3 +163,54 @@ class TestAttackPathGenerator:
         paths = AttackPathGenerator.generate(asset, scored)
         chained = [p for p in paths if "Chained" in p["path"]]
         assert len(chained) == 0
+
+
+# ═══════════ executive_summary + top_3_targets (regression for the
+#             renderer that read top_3_targets but nothing produced it) ═══════════
+
+class TestExecutiveSummary:
+    def _scored(self):
+        """Two live + one dead asset, run through the real scorer."""
+        admin = RiskScorer.score_asset(_make_asset(
+            hostname="admin.example.com",
+            attack_surface={"admin_panels": [{"path": "/admin", "status": 200}],
+                            "login_pages": [], "api_endpoints": []},
+            missing_security_headers=["strict-transport-security"],
+        ))
+        ftp = RiskScorer.score_asset(_make_asset(
+            hostname="ftp.example.com",
+            ports=[{"port": 21, "state": "open"}],
+        ))
+        dead = RiskScorer.score_asset(_make_asset(hostname="dead.example.com", alive=False))
+        return [admin, ftp, dead]
+
+    def test_summary_has_top_3_targets(self):
+        summary = RiskScorer.executive_summary(self._scored())
+        assert "top_3_targets" in summary  # the key the report renders
+
+    def test_top_3_targets_shape(self):
+        summary = RiskScorer.executive_summary(self._scored())
+        targets = summary["top_3_targets"]
+        assert targets, "expected at least one target"
+        t = targets[0]
+        for key in ("rank", "hostname", "score", "level", "why_matters",
+                    "how_to_exploit", "next_action"):
+            assert key in t
+        assert t["rank"] == 1
+        assert isinstance(t["why_matters"], list) and t["why_matters"]
+        assert isinstance(t["next_action"], str) and t["next_action"]
+
+    def test_dead_hosts_excluded(self):
+        summary = RiskScorer.executive_summary(self._scored())
+        hosts = [t["hostname"] for t in summary["top_3_targets"]]
+        assert "dead.example.com" not in hosts  # score 0 → never a target
+
+    def test_next_action_matches_admin_finding(self):
+        summary = RiskScorer.executive_summary(self._scored())
+        admin = next(t for t in summary["top_3_targets"] if t["hostname"] == "admin.example.com")
+        assert "admin panel" in admin["next_action"].lower()
+
+    def test_empty_assets_safe(self):
+        summary = RiskScorer.executive_summary([])
+        assert summary["top_risks"] == []
+        assert summary.get("top_3_targets", []) == [] or "top_3_targets" not in summary

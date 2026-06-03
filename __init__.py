@@ -1,4 +1,4 @@
-# GhostTrace v5.0 — Professional OSINT Intelligence Platform
+# GhostTrace v6.3 — Professional OSINT Intelligence Platform
 # by Alsartawi
 
 """
