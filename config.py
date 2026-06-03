@@ -11,6 +11,8 @@ class Config:
     EXPORT_DIR = os.path.expanduser("~/ghosttrace_exports")
     CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
     LOG_DIR = os.path.join(BASE_DIR, "logs")
+    KEYFILE = os.path.join(BASE_DIR, ".keyfile")   # per-install key for at-rest encryption
+    _ENC_PREFIX = "enc:v1:"                          # marks an encrypted value in config.json
 
     TOR_PROXY = os.environ.get("GT_TOR_PROXY", "socks5://127.0.0.1:9050")
     # SECRET_KEY is resolved via get_secret_key() so sessions survive restarts:
@@ -88,10 +90,67 @@ class Config:
         os.environ["PATH"] = os.pathsep.join(parts)
 
     @classmethod
+    def _get_cipher(cls):
+        """Fernet cipher backed by a per-install key at KEYFILE (0600), created on
+        first use. Returns None if `cryptography` is unavailable so callers can
+        degrade gracefully (store/return plaintext) rather than crash."""
+        try:
+            from cryptography.fernet import Fernet
+        except ImportError:
+            return None
+        try:
+            if os.path.exists(cls.KEYFILE):
+                with open(cls.KEYFILE, "rb") as f:
+                    key = f.read().strip()
+            else:
+                key = Fernet.generate_key()
+                os.makedirs(os.path.dirname(cls.KEYFILE), exist_ok=True)
+                with open(cls.KEYFILE, "wb") as f:
+                    f.write(key)
+                try:
+                    os.chmod(cls.KEYFILE, 0o600)
+                except OSError:
+                    pass
+            return Fernet(key)
+        except Exception:
+            return None
+
+    @classmethod
+    def _encrypt_value(cls, val):
+        """Encrypt a single key value for at-rest storage. No-op on empty values
+        or when crypto is unavailable."""
+        val = str(val or "")
+        if not val:
+            return val
+        c = cls._get_cipher()
+        if not c:
+            return val
+        try:
+            return cls._ENC_PREFIX + c.encrypt(val.encode()).decode()
+        except Exception:
+            return val
+
+    @classmethod
+    def _decrypt_value(cls, val):
+        """Decrypt a stored value. Legacy plaintext (no prefix) is returned as-is
+        so existing configs keep working; a value we can't decrypt returns ''."""
+        if not isinstance(val, str) or not val.startswith(cls._ENC_PREFIX):
+            return val  # legacy plaintext / empty
+        c = cls._get_cipher()
+        if not c:
+            return ""
+        try:
+            return c.decrypt(val[len(cls._ENC_PREFIX):].encode()).decode()
+        except Exception:
+            return ""
+
+    @classmethod
     def load_api_keys(cls):
         if os.path.exists(cls.CONFIG_FILE):
             with open(cls.CONFIG_FILE) as f:
-                return json.load(f).get("api_keys", {})
+                raw = json.load(f).get("api_keys", {})
+            # transparently decrypt — callers always see plaintext
+            return {k: cls._decrypt_value(v) for k, v in raw.items()}
         return {}
 
     @classmethod
@@ -99,13 +158,14 @@ class Config:
         cfg = {}
         if os.path.exists(cls.CONFIG_FILE):
             with open(cls.CONFIG_FILE) as f: cfg = json.load(f)
-        cfg["api_keys"] = keys
+        # store ENCRYPTED at rest in config.json
+        cfg["api_keys"] = {k: cls._encrypt_value(v) for k, v in keys.items()}
         with open(cls.CONFIG_FILE, "w") as f: json.dump(cfg, f, indent=2)
         try:
             os.chmod(cls.CONFIG_FILE, 0o600)
         except OSError:
             pass
-        # Propagate keys into theHarvester's own config so it actually uses them.
+        # theHarvester reads plaintext from its own yaml — pass the original keys
         try:
             cls.sync_harvester_keys(keys)
         except Exception:

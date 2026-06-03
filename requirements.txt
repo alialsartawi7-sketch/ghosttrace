@@ -2,3 +2,4 @@ flask>=3.0.0
 weasyprint>=60.0
 bcrypt>=4.0.0
 pyyaml>=6.0
+cryptography>=42.0
