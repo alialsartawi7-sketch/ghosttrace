@@ -93,15 +93,19 @@ class SSLCertAdapter(ToolAdapter):
                 sans_raw = san_section.group(1)
                 sans = re.findall(r'DNS:([^\s,]+)', sans_raw)
                 for san in sans:
-                    san = san.strip().rstrip(".")
-                    if san and san != target:
-                        # Wildcard entries
-                        if san.startswith("*."):
-                            conf = 0.7
-                        else:
-                            conf = 0.9
-                        results.append({"value": f"SAN: {san}", "source": self.name,
-                                       "type": "subdomain", "confidence": conf, "extra": "SAN"})
+                    san = san.strip().rstrip(".").lower()
+                    if not san or san == target:
+                        continue
+                    if san.startswith("*."):
+                        # Wildcard cert coverage is SSL info, not a discovered host —
+                        # keep it as an 'ssl' note so it doesn't pollute the subdomain list.
+                        results.append({"value": san, "source": self.name,
+                                       "type": "ssl", "confidence": 0.5, "extra": "SAN (wildcard)"})
+                    else:
+                        # A concrete SAN host IS a real subdomain found via the cert.
+                        # Store the clean hostname (no "SAN: " prefix); `extra` marks origin.
+                        results.append({"value": san, "source": self.name,
+                                       "type": "subdomain", "confidence": 0.9, "extra": "SAN"})
 
                 results.append({"value": f"Total SANs: {len(sans)} domains in certificate",
                                "source": self.name, "type": "ssl", "confidence": 0.95, "extra": "SANCount"})

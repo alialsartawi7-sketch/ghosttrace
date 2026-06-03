@@ -9,6 +9,10 @@ class HarvesterAdapter(ToolAdapter):
     result_type = "email"
     description = "Email and subdomain harvester"
     _EMAIL_RE = re.compile(r'[\w.+-]+@[\w-]+\.[\w.-]+')
+    _IP_RE = re.compile(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$')
+    # strict, well-formed hostname: valid labels + an alphabetic TLD (>=2 chars)
+    _HOSTNAME_RE = re.compile(
+        r'^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$')
 
     def build_command(self, target, **opts):
         source = opts.get("source", "all")
@@ -45,6 +49,29 @@ class HarvesterAdapter(ToolAdapter):
     _SEC_EMAIL = re.compile(r'\[\*\].*[Ee]mails?\s+found', re.I)
     _SEC_HOST = re.compile(r'\[\*\].*(Hosts?|IPs?)\s+found', re.I)
 
+    def _clean_host(self, raw):
+        """Normalize and validate a host emitted by theHarvester. Returns a clean
+        hostname or bare IP, or None if it's junk. Handles:
+          * URL-encoding artifacts — '%2F' (or the bare '2F' left when the '%' is
+            dropped during scraping) that glue path fragments onto a host, e.g.
+            '2Fdocs.github.com' -> 'docs.github.com'.
+          * stray path/query/fragment tails from scraped URLs.
+          * wildcard entries ('*.github.com') — a DNS rule, not a real subdomain.
+          * anything that isn't a well-formed hostname or IPv4 address.
+        Case is normalized to lower so 'Help.x' and 'help.x' don't duplicate."""
+        import urllib.parse
+        h = urllib.parse.unquote(raw.strip())
+        h = h.split("/")[0].split("?")[0].split("#")[0]      # drop URL tails
+        h = re.sub(r'^2F(?=[A-Za-z0-9])', '', h)             # %2F artifact (note: capital F)
+        h = h.lower().rstrip(".")
+        if not h or h.startswith("*"):
+            return None
+        if self._IP_RE.match(h):
+            return h                                          # bare IP -> typed 'ip' in finalize
+        if "." in h and self._HOSTNAME_RE.match(h):
+            return h
+        return None
+
     def parse_line(self, line, context):
         results = []
         line = line.strip()
@@ -70,14 +97,15 @@ class HarvesterAdapter(ToolAdapter):
                 results.append({"value": line, "source": self.name, "type": "email",
                                "confidence": self.get_confidence(line)})
         elif section == "hosts":
-            host = line.split(":")[0].strip() if ":" in line else line.strip()
+            raw_host = line.split(":")[0].strip() if ":" in line else line.strip()
             ip = line.split(":")[-1].strip() if ":" in line and line.count(":") == 1 else ""
-            if host and "." in host:
+            host = self._clean_host(raw_host)
+            if host:
                 # Buffer by hostname; one result per host is emitted in finalize()
                 # with all resolved IPs aggregated (avoids duplicate rows).
                 host_map = context.setdefault("_host_map", {})
                 ips = host_map.setdefault(host, [])
-                if ip and ip != host and ip not in ips:
+                if ip and ip != host and ip not in ips and self._IP_RE.match(ip):
                     ips.append(ip)
         else:
             # Catch emails in any line
@@ -151,9 +179,12 @@ class HarvesterAdapter(ToolAdapter):
         has_ip = "(" in value and ")" in value
         hostname = value.split(" ")[0].split("(")[0].strip()
 
-        base = 0.6
+        # Unverified by default: theHarvester scrapes names from sources without
+        # checking they're live, so a name with no resolved IP is LOW confidence.
+        # A resolved IP is the only real verification signal we have here.
+        base = 0.45
         if has_ip:
-            base = 0.8   # Verified — DNS resolved
+            base = 0.8   # DNS resolved — verified, high confidence
             # Check if IP is private
             ip_match = re.search(r'(\d+\.\d+\.\d+\.\d+)', value)
             if ip_match and self._PRIVATE_IP.match(ip_match.group(1)):
