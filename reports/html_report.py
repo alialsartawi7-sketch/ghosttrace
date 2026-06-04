@@ -96,6 +96,155 @@ class ReportGenerator:
         return h == base or h.endswith('.' + base) or base.endswith('.' + h)
 
     @staticmethod
+    def _analyze_osint(cats):
+        """Cross-correlate passive findings into honest signals — no network
+        calls, no invented severity. Reads only what was already collected
+        (emails, subdomains, DNS records, IPs)."""
+        import re as _re
+        out = {"email_posture": None, "private_ips": [], "sensitive_subs": [],
+               "mx": 0, "ns": 0}
+
+        # ── DNS-derived email security posture (SPF / DMARC) + infra counts ──
+        spf = None
+        dmarc = None
+        for r in cats.get("dns", []):
+            v = (r.get("value", "") or "")
+            low = v.lower()
+            if "v=spf1" in low:
+                if "+all" in low:
+                    spf = "permissive (+all)"
+                elif "-all" in low:
+                    spf = "enforced (-all)"
+                elif "~all" in low:
+                    spf = "soft-fail (~all)"
+                else:
+                    spf = "present"
+            if "v=dmarc1" in low:
+                m = _re.search(r"p\s*=\s*(none|quarantine|reject)", low)
+                dmarc = m.group(1) if m else "present"
+            vs = v.strip()
+            if vs.startswith("[MX]"):
+                out["mx"] += 1
+            elif vs.startswith("[NS]"):
+                out["ns"] += 1
+        if cats.get("dns"):
+            out["email_posture"] = {"spf": spf, "dmarc": dmarc}
+
+        # ── Private / non-routable IPs disclosed in public records ──
+        def _priv(ip):
+            return bool(_re.match(
+                r"^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|127\.|0\.0\.0\.0$)", ip))
+        seen = set()
+        for r in cats.get("ip", []):
+            ip = (r.get("value", "") or "").strip()
+            if _re.match(r"^\d{1,3}(\.\d{1,3}){3}$", ip) and _priv(ip) and ip not in seen:
+                seen.add(ip)
+                out["private_ips"].append(ip)
+        # IPs embedded inside SPF includes (ip4:...)
+        for r in cats.get("dns", []):
+            for ip in _re.findall(r"ip4:(\d{1,3}(?:\.\d{1,3}){3})", r.get("value", "")):
+                if _priv(ip) and ip not in seen:
+                    seen.add(ip)
+                    out["private_ips"].append(ip)
+
+        # ── Subdomains whose NAME (exact DNS label) flags non-prod / sensitive
+        #    infra. Exact-label match (not substring) to avoid false positives
+        #    like "latest" → test or "therapist" → api. Common labels such as
+        #    mail/api/portal are intentionally excluded as too noisy. ──
+        patterns = {"admin", "dev", "staging", "test", "uat", "qa", "internal",
+                    "vpn", "backup", "jenkins", "gitlab", "git", "grafana",
+                    "vault", "jira", "db", "old", "beta", "dr", "sql"}
+        sub_seen = set()
+        for r in cats.get("subdomain", []):
+            host = (r.get("value", "") or "").split("→")[0].split(" ")[0].strip().lower()
+            if not host or host in sub_seen:
+                continue
+            labels = set(_re.split(r"[.\-_]", host))
+            hit = labels & patterns
+            if hit:
+                sub_seen.add(host)
+                out["sensitive_subs"].append((host, sorted(hit)[0]))
+        return out
+
+    @staticmethod
+    def _build_exec_summary(cats, target_e, module_e, total, n_cats,
+                            summary_text, high_conf, conf_high_pct):
+        """Build the executive-summary HTML body: scope + cross-correlated,
+        honest observations. target_e/module_e are already HTML-escaped."""
+        an = ReportGenerator._analyze_osint(cats)
+        parts = [
+            f'<p>Passive reconnaissance of <span class="highlight">{target_e}</span> via the '
+            f'<b>{module_e}</b> module surfaced <span class="highlight">{total} findings</span> '
+            f'across {n_cats} categories: {summary_text}. '
+            f'<span class="highlight">{high_conf} ({conf_high_pct}%)</span> are corroborated '
+            f'by reliable sources.</p>'
+        ]
+
+        # ── Email security posture (only when DNS records were collected) ──
+        ep = an["email_posture"]
+        if ep:
+            bits = []
+            spf = ep["spf"]
+            if spf is None:
+                bits.append('<span class="risk">no SPF record</span>')
+            elif spf.startswith("permissive"):
+                bits.append('SPF <span class="risk">permissive (+all)</span>')
+            elif spf.startswith("soft"):
+                bits.append('SPF present (soft-fail, ~all)')
+            elif spf.startswith("enforced"):
+                bits.append('SPF <span class="highlight">enforced (-all)</span>')
+            else:
+                bits.append('SPF present')
+            dm = ep["dmarc"]
+            if dm is None:
+                bits.append('<span class="risk">no DMARC record</span>')
+            elif dm == "none":
+                bits.append('DMARC <span style="color:#e8a838">p=none (monitoring only)</span>')
+            elif dm == "quarantine":
+                bits.append('DMARC <span style="color:#e8a838">p=quarantine</span>')
+            elif dm == "reject":
+                bits.append('DMARC <span class="highlight">enforced (p=reject)</span>')
+            else:
+                bits.append('DMARC present')
+            infra = []
+            if an["mx"]:
+                infra.append(f'{an["mx"]} mail server' + ("s" if an["mx"] != 1 else ""))
+            if an["ns"]:
+                infra.append(f'{an["ns"]} nameserver' + ("s" if an["ns"] != 1 else ""))
+            infra_txt = f' {", ".join(infra)} identified.' if infra else ''
+            parts.append(f'<p><b>Email security:</b> {"; ".join(bits)}.{infra_txt}</p>')
+
+        # ── Signals worth reviewing (private IPs, sensitive subdomain names) ──
+        signals = []
+        if an["private_ips"]:
+            shown = ", ".join(escape(ip) for ip in an["private_ips"][:5])
+            more = " …" if len(an["private_ips"]) > 5 else ""
+            signals.append(
+                f'<span class="risk">Private/internal IP addresses disclosed</span> in public '
+                f'records ({shown}{more}) — exposes internal network ranges.')
+        if an["sensitive_subs"]:
+            hosts = [h for h, _ in an["sensitive_subs"]]
+            shown = ", ".join(escape(h) for h in hosts[:4])
+            more = f' (+{len(hosts) - 4} more)' if len(hosts) > 4 else ''
+            signals.append(
+                f'{len(hosts)} subdomain' + ("s" if len(hosts) != 1 else "") +
+                f' use sensitive/non-production naming ({shown}{more}) — review on '
+                f'authorized targets.')
+        if signals:
+            lis = "".join(f'<li>{s}</li>' for s in signals)
+            parts.append(
+                '<p style="margin-top:8px"><b>Worth reviewing:</b></p>'
+                '<ul style="margin:4px 0 0 18px;color:var(--text2);font-size:13px;line-height:1.7">'
+                f'{lis}</ul>')
+        elif not ep:
+            parts.append('<p>No notable cross-source signals surfaced from passive data alone.</p>')
+        else:
+            parts.append('<p><span class="highlight">No high-risk indicators</span> surfaced '
+                         'from passive data alone.</p>')
+
+        return "\n".join(parts)
+
+    @staticmethod
     def generate_html(results, target, module, recon_data=None):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -143,6 +292,12 @@ class ReportGenerator:
         conf_high_pct = round(high_conf / max(total, 1) * 100)
         conf_med_pct = round(med_conf / max(total, 1) * 100)
         conf_low_pct = 100 - conf_high_pct - conf_med_pct
+
+        # Cross-correlated, honest executive-summary body (built outside the
+        # big f-string to keep complex logic out of brace-escaping).
+        exec_body_html = ReportGenerator._build_exec_summary(
+            cats, target_e, module_e, total, len(active_cats),
+            summary_text, high_conf, conf_high_pct)
 
         # Table builder
         def tbl(items, tag_cls):
@@ -294,13 +449,7 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
 <!-- EXECUTIVE SUMMARY -->
 <div class="exec">
 <h3>Executive Summary</h3>
-<p>Reconnaissance of <span class="highlight">{target_e}</span> using the <b>{module_e}</b> module yielded
-<span class="highlight">{total} total findings</span> across {len(active_cats)} categories: {summary_text}.
-<br><br>
-<span class="highlight">{high_conf} results ({conf_high_pct}%)</span> have high confidence and are considered reliable.
-{f'<span class="risk">Significant exposure detected</span> — immediate review recommended.' if total > 20 else ''}
-{f'<span class="risk">Sensitive records found</span> — check DNS and SSL sections for misconfigurations.' if cats.get("dns") or cats.get("ssl") else ''}
-</p>
+{exec_body_html}
 </div>'''
 
         # ═══════════════ RESULT TYPE CHART (SVG) ═══════════════
