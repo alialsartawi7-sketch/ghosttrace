@@ -188,3 +188,41 @@ class TestSensitiveSubdomainMatching:
     def test_clean_subdomains_not_flagged(self):
         assert self._flag("arts.zu.edu.eg", "library.zu.edu.eg",
                           "moodle.zu.edu.eg") == set()
+
+
+class TestAccessAndEmailSignals:
+    """Capture-expansion: remote-access subdomains + admin-hosted emails."""
+
+    def _subs(self, *names):
+        cats = {"subdomain": [{"value": n, "type": "subdomain",
+                               "source": "x", "confidence": 0.7} for n in names]}
+        return {h for h, _ in ReportGenerator._analyze_osint(cats)["sensitive_subs"]}
+
+    def _emails(self, *vals):
+        cats = {"email": [{"value": v, "type": "email",
+                           "source": "x", "confidence": 0.8} for v in vals]}
+        return ReportGenerator._analyze_osint(cats)["admin_emails"]
+
+    # access points (exact-label) are now caught
+    def test_access_points_caught(self):
+        assert self._subs("portal.example.com") == {"portal.example.com"}
+        assert self._subs("remote.example.com") == {"remote.example.com"}
+        assert self._subs("owa.example.com") == {"owa.example.com"}
+        assert self._subs("sso.example.com") == {"sso.example.com"}
+
+    # citrix is distinctive → substring
+    def test_citrix_substring(self):
+        assert self._subs("citrixgw.example.com") == {"citrixgw.example.com"}
+
+    # "remote" must NOT fire as a substring (university noise like remote-learning)
+    def test_remote_not_substring(self):
+        assert self._subs("remotelearning.example.com") == set()
+        assert self._subs("lesson.example.com") == set()  # "sso" is substring of "lesson", not a label
+
+    # admin-hosted emails
+    def test_admin_email_flagged(self):
+        assert self._emails("isa@admin.example.com") == ["isa@admin.example.com"]
+        assert self._emails("ceo@internal.example.com") == ["ceo@internal.example.com"]
+
+    def test_normal_email_not_flagged(self):
+        assert self._emails("info@example.com", "hr@example.com") == []

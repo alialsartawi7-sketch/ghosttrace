@@ -102,7 +102,7 @@ class ReportGenerator:
         (emails, subdomains, DNS records, IPs)."""
         import re as _re
         out = {"email_posture": None, "private_ips": [], "sensitive_subs": [],
-               "mx": 0, "ns": 0}
+               "admin_emails": [], "mx": 0, "ns": 0}
 
         # ── DNS-derived email security posture (SPF / DMARC) + infra counts ──
         spf = None
@@ -147,18 +147,22 @@ class ReportGenerator:
                     seen.add(ip)
                     out["private_ips"].append(ip)
 
-        # ── Subdomains whose NAME flags non-prod / sensitive infra. Two tiers:
-        #    STRONG keywords (admin, vpn, internal…) match as a SUBSTRING — when
-        #    they appear anywhere in a name (e.g. "webadmin", "admin-portal") it
-        #    is almost always intentional, and missing a real admin panel is
-        #    worse than one extra line. NOISY/common keywords (test, dev, db…)
-        #    match only as an EXACT DNS label, to avoid false positives like a
-        #    name ending in "...studreg"→dr, "latest"→test, or "database"→db.
-        #    These are generic security patterns, not target-specific examples. ──
-        STRONG = {"admin", "vpn", "internal", "jenkins", "gitlab", "grafana",
-                  "vault", "backup", "phpmyadmin", "webmail", "citrix", "remote"}
+        # ── Subdomains whose NAME flags non-prod / sensitive / access infra.
+        #    Two tiers:
+        #    STRONG keywords (admin, vpn, citrix…) match as a SUBSTRING — they're
+        #    distinctive enough that appearing anywhere in a name (e.g.
+        #    "webadmin", "admin-portal", "vpngw") is almost always intentional,
+        #    and missing a real admin/remote-access panel is worse than one extra
+        #    line. NOISY/short/common keywords (test, dev, remote, portal…) match
+        #    only as an EXACT DNS label, to avoid false positives like
+        #    "...studreg"→dr, "latest"→test, "database"→db, "remotelearning"→remote.
+        #    Generic security patterns — not target-specific examples. ──
+        STRONG = {"admin", "vpn", "internal", "jenkins", "gitlab", "gitea",
+                  "grafana", "kibana", "vault", "backup", "phpmyadmin",
+                  "webmail", "citrix", "sonarqube"}
         NOISY = {"dev", "staging", "test", "uat", "qa", "git", "db", "sql",
-                 "old", "beta", "dr", "jira"}
+                 "old", "beta", "dr", "jira", "remote", "portal", "sso",
+                 "owa", "rdp", "gateway", "vnc"}
         sub_seen = set()
         for r in cats.get("subdomain", []):
             host = (r.get("value", "") or "").split("→")[0].split(" ")[0].strip().lower()
@@ -169,6 +173,18 @@ class ReportGenerator:
             if hits:
                 sub_seen.add(host)
                 out["sensitive_subs"].append((host, sorted(hits)[0]))
+
+        # ── Emails hosted on a sensitive subdomain (e.g. isa@admin.example.com)
+        #    — the address itself points at admin/internal infra. ──
+        email_seen = set()
+        for r in cats.get("email", []):
+            val = (r.get("value", "") or "").strip().lower()
+            if "@" not in val or val in email_seen:
+                continue
+            domain = val.split("@")[-1]
+            if any(k in domain for k in ("admin", "internal", "vpn")):
+                email_seen.add(val)
+                out["admin_emails"].append(val)
         return out
 
     @staticmethod
@@ -235,6 +251,13 @@ class ReportGenerator:
                 f'{len(hosts)} subdomain' + ("s" if len(hosts) != 1 else "") +
                 f' use sensitive/non-production naming ({shown}{more}) — review on '
                 f'authorized targets.')
+        if an["admin_emails"]:
+            ae = an["admin_emails"]
+            shown = ", ".join(escape(e) for e in ae[:3])
+            more = f' (+{len(ae) - 3} more)' if len(ae) > 3 else ''
+            signals.append(
+                f'{len(ae)} email address' + ("es" if len(ae) != 1 else "") +
+                f' hosted on a sensitive subdomain ({shown}{more}).')
         if signals:
             lis = "".join(f'<li>{s}</li>' for s in signals)
             parts.append(

@@ -26,11 +26,17 @@ class SSLCertAdapter(ToolAdapter):
         results = []
 
         try:
-            # Step 1: Get raw cert
+            # Step 1: Get raw cert.
+            # NOTE: `openssl s_client` does NOT exit on its own after the TLS
+            # handshake — it stays connected waiting for I/O. Against servers
+            # that hold the connection open (most HTTPS servers) an empty stdin
+            # leaves it blocking until the timeout fires ("SSL connection timed
+            # out"). Sending "Q" (the interactive quit command) makes it close
+            # cleanly the moment the handshake + cert exchange is done.
             proc1 = subprocess.run(
                 ["openssl", "s_client", "-connect", f"{target}:{port}",
                  "-servername", target],
-                input="", capture_output=True, text=True, timeout=timeout
+                input="Q\n", capture_output=True, text=True, timeout=timeout
             )
 
             cert_pem = ""
@@ -118,7 +124,8 @@ class SSLCertAdapter(ToolAdapter):
                                "type": "ssl", "confidence": 0.9, "extra": "Org"})
 
         except subprocess.TimeoutExpired:
-            results.append({"value": f"SSL connection timed out for {target}",
+            results.append({"value": f"No TLS response from {target}:{port} within {timeout}s "
+                                     f"(port may be closed/filtered or not serving HTTPS)",
                            "source": self.name, "type": "ssl", "confidence": 0.3})
         except FileNotFoundError:
             results.append({"value": "openssl not found",
