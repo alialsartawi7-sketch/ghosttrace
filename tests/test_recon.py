@@ -3,9 +3,11 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
+import socket
 from unittest.mock import patch, MagicMock
 from recon import (DNSResolver, DataQuality, AttackSurfaceDetector,
-                   HTTPProber, PortScanner, _is_internal_host)
+                   HTTPProber, PortScanner, _is_internal_host,
+                   _safe_pinned_ip, _PinnedHTTPConnection, _PinnedHTTPSConnection)
 from recon.risk_engine import RiskScorer, RiskLevel
 
 
@@ -168,3 +170,70 @@ class TestSSRFGuard:
             r = PortScanner.scan("internal.example", timeout=1)
         assert r["ports"] == []
         assert r.get("blocked") == "internal address"
+
+
+# ═══════════ DNS PINNING (anti-rebinding) ═══════════
+
+def _addrinfo(*pairs):
+    """Shape getaddrinfo() output from (family, ip) pairs."""
+    return [(fam, 1, 6, "", (ip, 0)) for fam, ip in pairs]
+
+
+class TestDNSPinning:
+    """One resolution decides the verdict AND supplies the IP we connect to, so a
+    DNS rebind between validation and connect can't redirect a probe to an
+    internal address."""
+
+    # ── _safe_pinned_ip verdicts ──
+    def test_public_ip_literal_ok(self):
+        assert _safe_pinned_ip("8.8.8.8") == ("ok", "8.8.8.8")
+
+    @pytest.mark.parametrize("ip", ["127.0.0.1", "10.0.0.5", "169.254.169.254"])
+    def test_internal_ip_literal_refused(self, ip):
+        assert _safe_pinned_ip(ip) == ("internal", None)
+
+    def test_hostname_public_pins_resolved_ip(self):
+        with patch("recon.socket.getaddrinfo",
+                   return_value=_addrinfo((socket.AF_INET, "93.184.216.34"))):
+            assert _safe_pinned_ip("x.example") == ("ok", "93.184.216.34")
+
+    def test_hostname_private_refused(self):
+        with patch("recon.socket.getaddrinfo",
+                   return_value=_addrinfo((socket.AF_INET, "10.1.2.3"))):
+            assert _safe_pinned_ip("x.example") == ("internal", None)
+
+    def test_any_internal_address_refuses_whole_host(self):
+        # public + private in the same answer => refuse (rebinding defence)
+        mixed = _addrinfo((socket.AF_INET, "93.184.216.34"),
+                          (socket.AF_INET, "10.1.2.3"))
+        with patch("recon.socket.getaddrinfo", return_value=mixed):
+            assert _safe_pinned_ip("x.example") == ("internal", None)
+
+    def test_unresolvable_is_dead(self):
+        with patch("recon.socket.getaddrinfo", side_effect=OSError("nxdomain")):
+            assert _safe_pinned_ip("x.example") == ("dead", None)
+
+    def test_family_filter_v6_only_wanting_v4_is_dead(self):
+        # public IPv6 only; the port scanner asks for AF_INET => nothing to scan
+        with patch("recon.socket.getaddrinfo",
+                   return_value=_addrinfo((socket.AF_INET6, "2606:2800:220:1::1"))):
+            assert _safe_pinned_ip("x.example", family=socket.AF_INET) == ("dead", None)
+
+    # ── the connection dials the pinned IP, never a re-resolved one ──
+    def test_http_connection_dials_pinned_ip(self):
+        fake = MagicMock()
+        with patch("recon.socket.create_connection", return_value=fake) as cc:
+            conn = _PinnedHTTPConnection("victim.example.com", "93.184.216.34")
+            conn.connect()
+        assert cc.call_args.args[0] == ("93.184.216.34", 80)   # dialed the vetted IP
+        assert conn.host == "victim.example.com"               # Host header unchanged
+
+    def test_https_connection_pins_ip_and_keeps_sni(self):
+        fake = MagicMock()
+        ctx = MagicMock(); ctx.wrap_socket.return_value = fake
+        with patch("recon.socket.create_connection", return_value=fake) as cc:
+            conn = _PinnedHTTPSConnection("victim.example.com", "93.184.216.34")
+            conn._context = ctx
+            conn.connect()
+        assert cc.call_args.args[0] == ("93.184.216.34", 443)
+        assert ctx.wrap_socket.call_args.kwargs["server_hostname"] == "victim.example.com"

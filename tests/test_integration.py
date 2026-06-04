@@ -5,6 +5,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import pytest
 import json
 from app import create_app
+from config import Config
 
 
 @pytest.fixture
@@ -199,3 +200,58 @@ class TestSSLTimeout:
         r = client.get("/api/scan/ssl?domain=example.com")
         r.get_data(as_text=True)
         assert captured.get("timeout") == 10  # falls back to the 10s default
+
+
+class TestSettingsMasking:
+    """The settings GET must never leak plaintext keys; an unchanged masked field
+    on save must keep the stored secret; clearing a field still works; and the
+    theHarvester sync must always receive plaintext, never the mask sentinel."""
+
+    def _isolate(self, tmp_path, monkeypatch):
+        # point at-rest storage at a temp dir and capture (don't write) sync calls
+        monkeypatch.setattr(Config, "CONFIG_FILE", str(tmp_path / "config.json"))
+        monkeypatch.setattr(Config, "KEYFILE", str(tmp_path / ".keyfile"))
+        synced = []
+        monkeypatch.setattr(Config, "sync_harvester_keys",
+                            lambda keys=None: synced.append(keys))
+        return synced
+
+    def test_masked_loader_hides_secret(self, tmp_path, monkeypatch):
+        self._isolate(tmp_path, monkeypatch)
+        Config.save_api_keys({"shodan": "SECRET123", "hunter": ""})
+        masked = Config.load_api_keys_masked()
+        assert masked["shodan"] == Config.KEY_MASK    # set   -> mask
+        assert masked["hunter"] == ""                 # unset -> empty
+        assert "SECRET123" not in masked.values()     # secret never present
+
+    def test_get_route_returns_no_plaintext(self, client, tmp_path, monkeypatch):
+        self._isolate(tmp_path, monkeypatch)
+        Config.save_api_keys({"shodan": "TOPSECRET"})
+        data = client.get('/api/settings').get_json()
+        assert data["api_keys"]["shodan"] == Config.KEY_MASK
+        assert "TOPSECRET" not in json.dumps(data)
+
+    def test_unchanged_mask_keeps_stored_key(self, tmp_path, monkeypatch):
+        self._isolate(tmp_path, monkeypatch)
+        Config.save_api_keys({"shodan": "ORIGINAL"})
+        Config.save_api_keys({"shodan": Config.KEY_MASK})   # UI echoes mask back
+        assert Config.load_api_keys()["shodan"] == "ORIGINAL"
+
+    def test_new_value_replaces_key(self, tmp_path, monkeypatch):
+        self._isolate(tmp_path, monkeypatch)
+        Config.save_api_keys({"shodan": "ORIGINAL"})
+        Config.save_api_keys({"shodan": "REPLACED"})
+        assert Config.load_api_keys()["shodan"] == "REPLACED"
+
+    def test_empty_clears_key(self, tmp_path, monkeypatch):
+        self._isolate(tmp_path, monkeypatch)
+        Config.save_api_keys({"shodan": "ORIGINAL"})
+        Config.save_api_keys({"shodan": ""})                # clearing still works
+        assert Config.load_api_keys().get("shodan", "") == ""
+
+    def test_sync_gets_plaintext_never_mask(self, tmp_path, monkeypatch):
+        synced = self._isolate(tmp_path, monkeypatch)
+        Config.save_api_keys({"shodan": "ORIGINAL"})
+        Config.save_api_keys({"shodan": Config.KEY_MASK})   # untouched on 2nd save
+        assert synced[-1]["shodan"] == "ORIGINAL"           # real key reaches sync
+        assert Config.KEY_MASK not in synced[-1].values()

@@ -14,7 +14,9 @@ import json
 import re
 import ipaddress
 import concurrent.futures
-from urllib.request import urlopen, Request, build_opener, HTTPRedirectHandler
+import http.client
+from urllib.request import (urlopen, Request, build_opener, HTTPRedirectHandler,
+                            HTTPHandler, HTTPSHandler)
 from urllib.error import URLError, HTTPError
 from datetime import datetime
 from utils.logger import log
@@ -33,24 +35,25 @@ class _NoRedirect(HTTPRedirectHandler):
 _NO_REDIRECT_OPENER = build_opener(_NoRedirect)
 
 
+def _ip_is_internal(ip):
+    """Classify an ipaddress object as non-routable / not-safe-to-reach.
+    Shared by _is_internal_host (validation) and _safe_pinned_ip (connect)."""
+    return (ip.is_private or ip.is_loopback or ip.is_link_local
+            or ip.is_reserved or ip.is_multicast or ip.is_unspecified)
+
+
 def _is_internal_host(hostname):
     """True if the hostname resolves to (or is) a private/loopback/link-local/
     reserved address — used to block SSRF-style probes of internal services."""
     try:
         host = hostname.strip().split(" ")[0]
-        # If it's already an IP literal
         try:
-            ip = ipaddress.ip_address(host)
-            return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast
+            return _ip_is_internal(ipaddress.ip_address(host))  # IP literal
         except ValueError:
             pass
-        # Resolve and check every returned address
-        infos = socket.getaddrinfo(host, None)
-        for info in infos:
-            addr = info[4][0]
+        for info in socket.getaddrinfo(host, None):   # resolve, check every address
             try:
-                ip = ipaddress.ip_address(addr)
-                if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+                if _ip_is_internal(ipaddress.ip_address(info[4][0])):
                     return True
             except ValueError:
                 continue
@@ -58,6 +61,94 @@ def _is_internal_host(hostname):
     except Exception:
         # If we can't resolve, treat as non-internal (DNS step handles dead hosts)
         return False
+
+
+def _safe_pinned_ip(host, family=None):
+    """Resolve `host` ONCE and decide whether it's safe to connect to, returning
+    (verdict, ip):
+      ("internal", None) — at least one resolved address is non-routable (covers
+                           an internal IPv6 address even when family=AF_INET).
+      ("dead", None)     — nothing resolved, or nothing in the requested family.
+      ("ok", ip)         — every resolved address is public; `ip` is the address
+                           to PIN the connection to.
+
+    Connecting to the returned `ip` instead of re-resolving the hostname closes
+    the validate-then-connect (DNS-rebinding) window: the address we vetted is
+    the exact address we dial. Conservative — any single internal address in the
+    DNS answer rejects the whole host."""
+    host = (host or "").strip().split(" ")[0]
+    if not host:
+        return ("dead", None)
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+    except Exception:
+        return ("dead", None)
+    pinned = None
+    for info in infos:
+        fam, addr = info[0], info[4][0]
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        if _ip_is_internal(ip):
+            return ("internal", None)
+        if (family is None or fam == family) and pinned is None:
+            pinned = addr
+    return ("ok", pinned) if pinned else ("dead", None)
+
+
+# ── DNS-pinned HTTP(S): dial a pre-validated IP while keeping the original Host
+#    header + SNI, so a rebind between validation and connect can't send us to an
+#    internal address. ──
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, host, pinned_ip, **kw):
+        super().__init__(host, **kw)
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        self.sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout, self.source_address)
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    def __init__(self, host, pinned_ip, **kw):
+        super().__init__(host, **kw)
+        self._pinned_ip = pinned_ip
+
+    def connect(self):
+        sock = socket.create_connection(
+            (self._pinned_ip, self.port), self.timeout, self.source_address)
+        # server_hostname = the real host → SNI + certificate validation intact
+        self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+
+
+class _PinnedHTTPHandler(HTTPHandler):
+    def __init__(self, pinned_ip):
+        super().__init__()
+        self._pinned_ip = pinned_ip
+
+    def http_open(self, req):
+        return self.do_open(
+            lambda h, **kw: _PinnedHTTPConnection(h, self._pinned_ip, **kw), req)
+
+
+class _PinnedHTTPSHandler(HTTPSHandler):
+    def __init__(self, pinned_ip):
+        super().__init__()
+        self._pinned_ip = pinned_ip
+
+    def https_open(self, req):
+        return self.do_open(
+            lambda h, **kw: _PinnedHTTPSConnection(h, self._pinned_ip, **kw),
+            req, context=self._context)
+
+
+def _pinned_opener(pinned_ip):
+    """A no-redirect opener that dials only `pinned_ip`. Built per-probe because
+    the pinned address is host-specific."""
+    return build_opener(_PinnedHTTPHandler(pinned_ip),
+                        _PinnedHTTPSHandler(pinned_ip),
+                        _NoRedirect)
 
 # ═══════════════ DNS RESOLVER ═══════════════
 class DNSResolver:
@@ -141,11 +232,16 @@ class HTTPProber:
             "probed_at": datetime.now().isoformat()
         }
 
-        # SSRF guard: never probe hosts that resolve to internal addresses
-        if _is_internal_host(hostname):
+        # SSRF guard + DNS pinning: resolve once, refuse internal hosts, and pin
+        # the connection to the vetted IP so a rebind can't redirect the probe.
+        verdict, pinned_ip = _safe_pinned_ip(hostname)
+        if verdict == "internal":
             log.warning(f"HTTP probe skipped for internal host: {hostname}")
             result["blocked"] = "internal address"
             return result
+        if verdict == "dead":
+            return result  # unresolvable — not alive, not blocked
+        opener = _pinned_opener(pinned_ip)
 
         # Try HTTPS first, then HTTP
         for scheme in ["https", "http"]:
@@ -155,9 +251,9 @@ class HTTPProber:
                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
                     "Accept": "text/html,application/xhtml+xml"
                 })
-                # Use the non-redirect opener so a 30x to an internal target
-                # is reported, not chased.
-                resp = _NO_REDIRECT_OPENER.open(req, timeout=timeout)
+                # Pinned, non-redirect opener: dials the vetted IP, keeps Host +
+                # SNI, and reports a 30x to an internal target instead of chasing.
+                resp = opener.open(req, timeout=timeout)
                 status = resp.getcode()
                 headers = {k.lower(): v for k, v in resp.getheaders()}
                 body = ""
@@ -322,19 +418,17 @@ class PortScanner:
     @staticmethod
     def scan(host, ports=None, timeout=1):
         """Scan specific ports on a host"""
-        # SSRF guard: never port-scan a host that resolves to an internal
-        # address. HTTPProber and AttackSurfaceDetector already enforce this;
-        # the port scanner used to bypass it, so a passive result pointing at
-        # 127.0.0.1 / a private range / cloud metadata could get scanned.
-        if _is_internal_host(host):
+        # SSRF guard + DNS pinning: one resolution decides the verdict AND gives
+        # the IPv4 we scan, so we never re-resolve to a rebind target. (Was two
+        # lookups — _is_internal_host + gethostbyname — leaving a rebind window.)
+        verdict, ip = _safe_pinned_ip(host, family=socket.AF_INET)
+        if verdict == "internal":
             log.warning(f"Port scan skipped for internal host: {host}")
             return {"host": host, "ip": None, "ports": [], "blocked": "internal address",
                     "scanned_at": datetime.now().isoformat()}
-        ports = ports or PortScanner.COMMON_PORTS.keys()
-        try:
-            ip = socket.gethostbyname(host)
-        except socket.gaierror:
+        if verdict == "dead":
             return {"host": host, "ip": None, "ports": [], "scanned_at": datetime.now().isoformat()}
+        ports = ports or PortScanner.COMMON_PORTS.keys()
 
         open_ports = []
         for port in ports:
@@ -407,26 +501,30 @@ class AttackSurfaceDetector:
             "detected_at": datetime.now().isoformat()
         }
 
-        # SSRF guard: skip internal hosts entirely
-        if _is_internal_host(hostname):
-            log.warning(f"Attack-surface scan skipped for internal host: {hostname}")
+        # SSRF guard + DNS pinning: resolve once, refuse internal hosts, and reuse
+        # one pinned opener for every path probe (was re-resolving per request).
+        verdict, pinned_ip = _safe_pinned_ip(hostname)
+        if verdict != "ok":
+            if verdict == "internal":
+                log.warning(f"Attack-surface scan skipped for internal host: {hostname}")
             return findings
+        opener = _pinned_opener(pinned_ip)
 
         # Check admin paths
         for path in AttackSurfaceDetector.ADMIN_PATHS:
-            status = AttackSurfaceDetector._check_path(hostname, path, timeout)
+            status = AttackSurfaceDetector._check_path(hostname, path, timeout, opener)
             if status and status in (200, 301, 302, 401, 403):
                 findings["admin_panels"].append({"path": path, "status": status})
 
         # Check login paths
         for path in AttackSurfaceDetector.LOGIN_PATHS:
-            status = AttackSurfaceDetector._check_path(hostname, path, timeout)
+            status = AttackSurfaceDetector._check_path(hostname, path, timeout, opener)
             if status and status in (200, 301, 302):
                 findings["login_pages"].append({"path": path, "status": status})
 
         # Check API paths
         for path in AttackSurfaceDetector.API_PATHS:
-            status = AttackSurfaceDetector._check_path(hostname, path, timeout)
+            status = AttackSurfaceDetector._check_path(hostname, path, timeout, opener)
             if status and status in (200, 301, 302, 401, 403):
                 findings["api_endpoints"].append({"path": path, "status": status})
 
@@ -437,15 +535,18 @@ class AttackSurfaceDetector:
         return findings
 
     @staticmethod
-    def _check_path(hostname, path, timeout=3):
-        """Check if a path exists on a host (no redirect following)"""
+    def _check_path(hostname, path, timeout=3, opener=None):
+        """Check if a path exists on a host (no redirect following). `opener` is
+        the host's DNS-pinned opener; falls back to the shared no-redirect opener
+        if called without one."""
+        opener = opener or _NO_REDIRECT_OPENER
         for scheme in ["https", "http"]:
             url = f"{scheme}://{hostname}{path}"
             try:
                 req = Request(url, headers={
                     "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36"
                 })
-                resp = _NO_REDIRECT_OPENER.open(req, timeout=timeout)
+                resp = opener.open(req, timeout=timeout)
                 code = resp.getcode()
                 try:
                     resp.close()

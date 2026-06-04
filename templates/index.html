@@ -465,12 +465,13 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
   <div class="modal">
     <h2>⚙️ Settings</h2>
     <div class="setting-section">API Keys (optional — unlocks more sources)</div>
+    <div style="font-size:11px;color:var(--text-2);margin:-4px 0 8px">Saved keys are masked — clear a field to replace it.</div>
     <div class="settings-grid">
-      <div class="setting-row"><label>Shodan</label><input id="key-shodan" placeholder="API key"></div>
-      <div class="setting-row"><label>Hunter.io</label><input id="key-hunter" placeholder="API key"></div>
-      <div class="setting-row"><label>SecurityTrails</label><input id="key-sectrails" placeholder="API key"></div>
-      <div class="setting-row"><label>VirusTotal</label><input id="key-virustotal" placeholder="API key"></div>
-      <div class="setting-row"><label>Censys</label><input id="key-censys" placeholder="API ID:Secret"></div>
+      <div class="setting-row"><label>Shodan</label><input id="key-shodan" type="password" autocomplete="off" placeholder="API key"></div>
+      <div class="setting-row"><label>Hunter.io</label><input id="key-hunter" type="password" autocomplete="off" placeholder="API key"></div>
+      <div class="setting-row"><label>SecurityTrails</label><input id="key-sectrails" type="password" autocomplete="off" placeholder="API key"></div>
+      <div class="setting-row"><label>VirusTotal</label><input id="key-virustotal" type="password" autocomplete="off" placeholder="API key"></div>
+      <div class="setting-row"><label>Censys</label><input id="key-censys" type="password" autocomplete="off" placeholder="API ID:Secret"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-d" onclick="document.getElementById('settings-modal').classList.remove('open')">Cancel</button>

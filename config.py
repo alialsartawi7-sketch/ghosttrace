@@ -13,6 +13,8 @@ class Config:
     LOG_DIR = os.path.join(BASE_DIR, "logs")
     KEYFILE = os.path.join(BASE_DIR, ".keyfile")   # per-install key for at-rest encryption
     _ENC_PREFIX = "enc:v1:"                          # marks an encrypted value in config.json
+    KEY_MASK = "********"                            # sent to the UI in place of a stored key;
+    #                                                  echoed back unchanged => keep stored value
 
     TOR_PROXY = os.environ.get("GT_TOR_PROXY", "socks5://127.0.0.1:9050")
     # SECRET_KEY is resolved via get_secret_key() so sessions survive restarts:
@@ -154,20 +156,39 @@ class Config:
         return {}
 
     @classmethod
+    def load_api_keys_masked(cls):
+        """Never returns secrets — a set key becomes KEY_MASK, an unset key ''.
+        The settings UI shows the mask and echoes it back unchanged for fields the
+        user didn't touch; save_api_keys then keeps the stored value. Stops the
+        settings GET from leaking plaintext API keys to the browser."""
+        return {k: (cls.KEY_MASK if str(v or "").strip() else "")
+                for k, v in cls.load_api_keys().items()}
+
+    @classmethod
     def save_api_keys(cls, keys):
         cfg = {}
         if os.path.exists(cls.CONFIG_FILE):
             with open(cls.CONFIG_FILE) as f: cfg = json.load(f)
-        # store ENCRYPTED at rest in config.json
-        cfg["api_keys"] = {k: cls._encrypt_value(v) for k, v in keys.items()}
+        existing = cfg.get("api_keys", {})   # already-encrypted at rest
+        merged = {}
+        for k, v in (keys or {}).items():
+            # The UI echoes KEY_MASK for a field the user left untouched — keep the
+            # stored secret instead of overwriting it with the mask.
+            if v == cls.KEY_MASK:
+                if existing.get(k):
+                    merged[k] = existing[k]
+                continue                          # unset + mask => nothing to store
+            merged[k] = cls._encrypt_value(v)     # new value ('' clears the key)
+        cfg["api_keys"] = merged
         with open(cls.CONFIG_FILE, "w") as f: json.dump(cfg, f, indent=2)
         try:
             os.chmod(cls.CONFIG_FILE, 0o600)
         except OSError:
             pass
-        # theHarvester reads plaintext from its own yaml — pass the original keys
+        # theHarvester reads plaintext from its own yaml — derive it from what we
+        # just stored so kept (masked) keys are synced too, never the mask itself.
         try:
-            cls.sync_harvester_keys(keys)
+            cls.sync_harvester_keys({k: cls._decrypt_value(v) for k, v in merged.items()})
         except Exception:
             pass
 

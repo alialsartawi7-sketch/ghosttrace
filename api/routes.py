@@ -461,7 +461,8 @@ def check_tools():
 @system_bp.route("/api/settings", methods=["GET", "POST"])
 def settings():
     if request.method == "GET":
-        return jsonify({"api_keys": Config.load_api_keys()})
+        # masked — the GET must never hand plaintext API keys to the browser
+        return jsonify({"api_keys": Config.load_api_keys_masked()})
     data = request.get_json()
     Config.save_api_keys(data.get("api_keys", {}))
     return jsonify({"status": "saved"})
