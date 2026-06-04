@@ -226,3 +226,77 @@ class TestAccessAndEmailSignals:
 
     def test_normal_email_not_flagged(self):
         assert self._emails("info@example.com", "hr@example.com") == []
+
+
+# ═══════════ EXECUTIVE-SUMMARY: PRIORITISED NEXT STEPS ═══════════
+
+class TestExecRecommendations:
+    """The OSINT exec summary must turn signals into prioritised, actionable
+    next steps + a bottom-line conclusion — without inventing severity."""
+
+    def test_strong_sub_yields_mfa_action_first(self):
+        an = ReportGenerator._analyze_osint(
+            {"subdomain": [{"value": "vpn.example.com", "type": "subdomain"}]})
+        recs = ReportGenerator._exec_recommendations(an)
+        assert recs, "expected at least one recommendation"
+        assert "MFA" in recs[0] and "internet-facing" in recs[0]
+
+    def test_weak_email_posture_yields_spf_dmarc_action(self):
+        an = ReportGenerator._analyze_osint(
+            {"dns": [{"value": "v=spf1 +all", "type": "dns"}]})
+        recs = ReportGenerator._exec_recommendations(an)
+        joined = " ".join(recs)
+        assert "-all" in joined and "DMARC" in joined
+
+    def test_private_ip_yields_topology_action(self):
+        an = ReportGenerator._analyze_osint(
+            {"ip": [{"value": "192.168.10.5", "type": "ip"}]})
+        recs = ReportGenerator._exec_recommendations(an)
+        assert any("public DNS" in r for r in recs)
+
+    def test_enforced_posture_no_recommendations(self):
+        an = ReportGenerator._analyze_osint({
+            "dns": [{"value": "v=spf1 -all", "type": "dns"},
+                    {"value": "v=DMARC1; p=reject", "type": "dns"}],
+            "subdomain": [{"value": "www.example.com", "type": "subdomain"}],
+        })
+        assert ReportGenerator._exec_recommendations(an) == []
+
+    def test_priority_order_strong_sub_before_email(self):
+        an = ReportGenerator._analyze_osint({
+            "dns": [{"value": "v=spf1 +all", "type": "dns"}],
+            "subdomain": [{"value": "admin.example.com", "type": "subdomain"}],
+        })
+        recs = ReportGenerator._exec_recommendations(an)
+        # admin/remote-access action must rank above email hardening
+        assert "MFA" in recs[0]
+        assert any("anti-spoofing" in r for r in recs)
+
+    def test_bottom_line_names_strong_sub(self):
+        an = ReportGenerator._analyze_osint(
+            {"subdomain": [{"value": "citrix.example.com", "type": "subdomain"}]})
+        bl = ReportGenerator._exec_bottom_line(an)
+        assert bl and "attack surface" in bl
+
+    def test_bottom_line_none_when_clean(self):
+        an = ReportGenerator._analyze_osint(
+            {"subdomain": [{"value": "www.example.com", "type": "subdomain"}]})
+        assert ReportGenerator._exec_bottom_line(an) is None
+
+    def test_rendered_summary_contains_sections(self):
+        cats = {
+            "dns": [{"value": "v=spf1 +all", "type": "dns"}],
+            "subdomain": [{"value": "vpn.example.com", "type": "subdomain"}],
+        }
+        html = ReportGenerator._build_exec_summary(
+            cats, "example.com", "full", 2, 2, "1 dns, 1 subdomain", 1, 50)
+        assert "Recommended next steps" in html
+        assert "Bottom line:" in html
+
+    def test_rendered_summary_clean_has_no_next_steps(self):
+        cats = {"dns": [{"value": "v=spf1 -all", "type": "dns"},
+                        {"value": "v=DMARC1; p=reject", "type": "dns"}]}
+        html = ReportGenerator._build_exec_summary(
+            cats, "example.com", "full", 2, 1, "2 dns", 2, 100)
+        assert "Recommended next steps" not in html
+        assert "Bottom line:" not in html

@@ -21,6 +21,21 @@ RESULT_TYPES = {
 }
 
 
+# Subdomain-name sensitivity keywords — shared by the OSINT analysis and the
+# executive-summary recommendations so the two can never drift apart.
+#   STRONG  : distinctive infra / admin / remote-access terms, matched as a
+#             SUBSTRING (e.g. "webadmin", "vpngw" should flag).
+#   NOISY   : short / common terms, matched only as an EXACT DNS label to avoid
+#             false positives (e.g. "...studreg"->dr, "database"->db).
+# Generic security patterns — not target-specific.
+_SENSITIVE_STRONG = {"admin", "vpn", "internal", "jenkins", "gitlab", "gitea",
+                     "grafana", "kibana", "vault", "backup", "phpmyadmin",
+                     "webmail", "citrix", "sonarqube"}
+_SENSITIVE_NOISY = {"dev", "staging", "test", "uat", "qa", "git", "db", "sql",
+                    "old", "beta", "dr", "jira", "remote", "portal", "sso",
+                    "owa", "rdp", "gateway", "vnc"}
+
+
 class ReportGenerator:
     @staticmethod
     def _group_subdomains(items):
@@ -157,12 +172,8 @@ class ReportGenerator:
         #    only as an EXACT DNS label, to avoid false positives like
         #    "...studreg"→dr, "latest"→test, "database"→db, "remotelearning"→remote.
         #    Generic security patterns — not target-specific examples. ──
-        STRONG = {"admin", "vpn", "internal", "jenkins", "gitlab", "gitea",
-                  "grafana", "kibana", "vault", "backup", "phpmyadmin",
-                  "webmail", "citrix", "sonarqube"}
-        NOISY = {"dev", "staging", "test", "uat", "qa", "git", "db", "sql",
-                 "old", "beta", "dr", "jira", "remote", "portal", "sso",
-                 "owa", "rdp", "gateway", "vnc"}
+        STRONG = _SENSITIVE_STRONG
+        NOISY = _SENSITIVE_NOISY
         sub_seen = set()
         for r in cats.get("subdomain", []):
             host = (r.get("value", "") or "").split("→")[0].split(" ")[0].strip().lower()
@@ -186,6 +197,88 @@ class ReportGenerator:
                 email_seen.add(val)
                 out["admin_emails"].append(val)
         return out
+
+    @staticmethod
+    def _exec_recommendations(an):
+        """Turn the honest signals from _analyze_osint into prioritised,
+        standard remediation / verification actions. No invented severity —
+        these are the conventional next steps for each observed signal, ordered
+        by how directly each one expands attack surface. Returns [] when
+        nothing applies (clean degradation)."""
+        recs = []
+        subs = [h for h, _ in an["sensitive_subs"]]
+        strong = [h for h in subs if any(k in h for k in _SENSITIVE_STRONG)]
+        noisy = [h for h in subs if h not in strong]
+
+        # 1) Internet-facing admin / remote-access / internal infra — top priority
+        if strong:
+            recs.append(
+                "Confirm the admin / remote-access / internal-named hosts above are "
+                "meant to be internet-facing; if so, enforce MFA and restrict them to "
+                "known source IPs (VPN or allow-list).")
+
+        # 2) Email anti-spoofing — only when the posture is actually weak
+        ep = an["email_posture"]
+        if ep:
+            spf, dmarc = ep["spf"], ep["dmarc"]
+            fixes = []
+            if spf is None:
+                fixes.append("publish an SPF record ending in -all")
+            elif spf.startswith("permissive"):
+                fixes.append("tighten SPF from +all to -all (hard-fail)")
+            if dmarc is None:
+                fixes.append("publish a DMARC record (start at p=none, then move to quarantine/reject)")
+            elif dmarc == "none":
+                fixes.append("raise DMARC from p=none to quarantine, then reject")
+            if fixes:
+                recs.append("Harden email anti-spoofing: " + "; ".join(fixes) + ".")
+
+        # 3) Internal topology leaked through public records
+        if an["private_ips"]:
+            recs.append(
+                "Remove the internal / non-routable IP addresses from public DNS and "
+                "SPF includes — they leak internal network topology to attackers.")
+
+        # 4) Non-production hosts (dev / staging / test ...) with no strong-infra flag
+        if noisy:
+            recs.append(
+                "Review the non-production hosts (dev / staging / test) for public "
+                "exposure — these commonly run outdated software or weaker auth.")
+
+        # 5) Admin addresses on sensitive infra — phishing / credential-reuse targets
+        if an["admin_emails"]:
+            recs.append(
+                "Treat the admin addresses on sensitive subdomains as high-value "
+                "phishing targets and verify their credentials aren't reused across "
+                "the exposed panels.")
+        return recs
+
+    @staticmethod
+    def _exec_bottom_line(an):
+        """One-sentence posture conclusion naming the single most significant
+        passive exposure, so the reader knows what to address first. Mirrors the
+        recommendation priority order. Returns None when nothing notable."""
+        subs = [h for h, _ in an["sensitive_subs"]]
+        strong = [h for h in subs if any(k in h for k in _SENSITIVE_STRONG)]
+        ep = an["email_posture"]
+        spf = ep["spf"] if ep else None
+        dmarc = ep["dmarc"] if ep else None
+        email_weak = ep and (spf is None or (spf or "").startswith("permissive")
+                             or dmarc is None or dmarc == "none")
+        if strong:
+            return ("the internet-facing admin / remote-access subdomains — these are "
+                    "direct attack surface and should be reviewed first")
+        if an["private_ips"]:
+            return ("internal network addresses disclosed in public records, which "
+                    "reveal internal topology")
+        if email_weak:
+            return ("a weak email anti-spoofing posture (SPF / DMARC), which leaves "
+                    "the domain open to spoofing")
+        if subs:
+            return "the set of non-production hosts exposed publicly"
+        if an["admin_emails"]:
+            return "admin email addresses exposed on sensitive infrastructure"
+        return None
 
     @staticmethod
     def _build_exec_summary(cats, target_e, module_e, total, n_cats,
@@ -269,6 +362,22 @@ class ReportGenerator:
         else:
             parts.append('<p><span class="highlight">No high-risk indicators</span> surfaced '
                          'from passive data alone.</p>')
+
+        # ── Prioritised, actionable next steps (parity with the recon summary) ──
+        recs = ReportGenerator._exec_recommendations(an)
+        if recs:
+            lis = "".join(f'<li>{escape(r)}</li>' for r in recs)
+            parts.append(
+                '<p style="margin-top:8px"><b>Recommended next steps</b> '
+                '<span style="color:var(--text2);font-weight:400">(in priority order)</span>:</p>'
+                '<ol style="margin:4px 0 0 18px;color:var(--text2);font-size:13px;line-height:1.7">'
+                f'{lis}</ol>')
+
+        # ── One-line posture conclusion: what to address first ──
+        bl = ReportGenerator._exec_bottom_line(an)
+        if bl:
+            parts.append(f'<p style="margin-top:8px"><b>Bottom line:</b> the most '
+                         f'significant passive exposure is {bl}.</p>')
 
         return "\n".join(parts)
 
