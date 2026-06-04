@@ -75,7 +75,7 @@ class ReportGenerator:
     def _base_domain(value):
         """Best-effort host from a target/URL string, for scope checks.
         Not a public-suffix parser — strips scheme/path/port/www/trailing dot
-        and lowercases. Enough to tell zu.edu.eg apart from ltuc.com."""
+        and lowercases. Enough to tell one registrable domain apart from another."""
         import re as _re
         s = str(value or "").strip().lower()
         s = _re.sub(r'^[a-z]+://', '', s)   # scheme
@@ -147,23 +147,28 @@ class ReportGenerator:
                     seen.add(ip)
                     out["private_ips"].append(ip)
 
-        # ── Subdomains whose NAME (exact DNS label) flags non-prod / sensitive
-        #    infra. Exact-label match (not substring) to avoid false positives
-        #    like "latest" → test or "therapist" → api. Common labels such as
-        #    mail/api/portal are intentionally excluded as too noisy. ──
-        patterns = {"admin", "dev", "staging", "test", "uat", "qa", "internal",
-                    "vpn", "backup", "jenkins", "gitlab", "git", "grafana",
-                    "vault", "jira", "db", "old", "beta", "dr", "sql"}
+        # ── Subdomains whose NAME flags non-prod / sensitive infra. Two tiers:
+        #    STRONG keywords (admin, vpn, internal…) match as a SUBSTRING — when
+        #    they appear anywhere in a name (e.g. "webadmin", "admin-portal") it
+        #    is almost always intentional, and missing a real admin panel is
+        #    worse than one extra line. NOISY/common keywords (test, dev, db…)
+        #    match only as an EXACT DNS label, to avoid false positives like a
+        #    name ending in "...studreg"→dr, "latest"→test, or "database"→db.
+        #    These are generic security patterns, not target-specific examples. ──
+        STRONG = {"admin", "vpn", "internal", "jenkins", "gitlab", "grafana",
+                  "vault", "backup", "phpmyadmin", "webmail", "citrix", "remote"}
+        NOISY = {"dev", "staging", "test", "uat", "qa", "git", "db", "sql",
+                 "old", "beta", "dr", "jira"}
         sub_seen = set()
         for r in cats.get("subdomain", []):
             host = (r.get("value", "") or "").split("→")[0].split(" ")[0].strip().lower()
             if not host or host in sub_seen:
                 continue
             labels = set(_re.split(r"[.\-_]", host))
-            hit = labels & patterns
-            if hit:
+            hits = {k for k in STRONG if k in host} | (labels & NOISY)
+            if hits:
                 sub_seen.add(host)
-                out["sensitive_subs"].append((host, sorted(hit)[0]))
+                out["sensitive_subs"].append((host, sorted(hits)[0]))
         return out
 
     @staticmethod

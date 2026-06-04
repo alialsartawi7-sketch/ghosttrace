@@ -148,3 +148,43 @@ class TestReconScopeGuard:
         html = open(res["filepath"], encoding="utf-8").read()
         assert "ftp.zu.edu.eg" in html
         assert "🛡️" in html              # Risk Assessment section present
+
+
+class TestSensitiveSubdomainMatching:
+    """Two-tier subdomain flagging: STRONG keywords match as substring (don't
+    miss admin panels), NOISY keywords match only as an exact label (no
+    false positives). Generic rules — no target-specific examples."""
+
+    def _flag(self, *names):
+        cats = {"subdomain": [{"value": n, "type": "subdomain",
+                               "source": "theHarvester", "confidence": 0.7}
+                              for n in names]}
+        hits = ReportGenerator._analyze_osint(cats)["sensitive_subs"]
+        return {h for h, _ in hits}
+
+    # STRONG → substring: real admin variants must NOT be missed
+    def test_admin_substring_variants_caught(self):
+        flagged = self._flag("adminsci.eps.zu.edu.eg", "facadmin.zu.edu.eg",
+                             "zuadmin1.zu.edu.eg", "adminmilitaryeducation.zu.edu.eg")
+        assert flagged == {"adminsci.eps.zu.edu.eg", "facadmin.zu.edu.eg",
+                           "zuadmin1.zu.edu.eg", "adminmilitaryeducation.zu.edu.eg"}
+
+    def test_vpn_internal_substring_caught(self):
+        assert self._flag("vpngateway.example.com") == {"vpngateway.example.com"}
+        assert self._flag("internal-api.example.com") == {"internal-api.example.com"}
+
+    # NOISY → exact label only: avoid false positives
+    def test_noisy_substring_not_flagged(self):
+        # "dr" inside "studreg", "test" inside "latest", "db" inside "database"
+        assert self._flag("hostelstudreg.zu.edu.eg") == set()
+        assert self._flag("latest.example.com") == set()
+        assert self._flag("database-info.example.com") == set()
+
+    def test_noisy_exact_label_flagged(self):
+        assert self._flag("staging.example.com") == {"staging.example.com"}
+        assert self._flag("dev.example.com") == {"dev.example.com"}
+        assert self._flag("test.example.com") == {"test.example.com"}
+
+    def test_clean_subdomains_not_flagged(self):
+        assert self._flag("arts.zu.edu.eg", "library.zu.edu.eg",
+                          "moodle.zu.edu.eg") == set()
