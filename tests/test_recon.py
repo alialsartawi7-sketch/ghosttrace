@@ -4,7 +4,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
 from unittest.mock import patch, MagicMock
-from recon import DNSResolver, DataQuality, AttackSurfaceDetector
+from recon import (DNSResolver, DataQuality, AttackSurfaceDetector,
+                   HTTPProber, PortScanner, _is_internal_host)
 from recon.risk_engine import RiskScorer, RiskLevel
 
 
@@ -114,3 +115,56 @@ class TestRiskLevelBoundaries:
             c = RiskLevel.color(level)
             assert c.startswith("#")
             assert len(c) == 7
+
+
+# ═══════════ SSRF GUARD ═══════════
+
+def _private_addrinfo(ip):
+    """Shape a socket.getaddrinfo() return value pointing at one address."""
+    return [(2, 1, 6, "", (ip, 0))]
+
+
+class TestSSRFGuard:
+    """The active-recon probes must refuse internal targets. Covers the three
+    network surfaces — HTTP prober, attack-surface detector, and (regression)
+    the port scanner, which previously bypassed the guard entirely."""
+
+    # ── _is_internal_host: IP literals need no DNS ──
+    @pytest.mark.parametrize("ip", ["127.0.0.1", "10.0.0.5", "192.168.1.1",
+                                    "172.16.0.1", "169.254.169.254", "0.0.0.0"])
+    def test_internal_ip_literals(self, ip):
+        assert _is_internal_host(ip) is True
+
+    @pytest.mark.parametrize("ip", ["8.8.8.8", "1.1.1.1", "93.184.216.34"])
+    def test_public_ip_literals(self, ip):
+        assert _is_internal_host(ip) is False
+
+    def test_hostname_resolving_to_private_is_internal(self):
+        with patch("recon.socket.getaddrinfo", return_value=_private_addrinfo("10.0.0.5")):
+            assert _is_internal_host("anything.example") is True
+
+    def test_hostname_resolving_to_public_is_external(self):
+        with patch("recon.socket.getaddrinfo", return_value=_private_addrinfo("93.184.216.34")):
+            assert _is_internal_host("anything.example") is False
+
+    # ── The probes block internal hosts (no network is reached) ──
+    def test_http_prober_blocks_internal(self):
+        with patch("recon.socket.getaddrinfo", return_value=_private_addrinfo("127.0.0.1")):
+            r = HTTPProber.probe("internal.example", timeout=1)
+        assert r.get("blocked") == "internal address"
+        assert r["alive"] is False
+
+    def test_attack_surface_blocks_internal(self):
+        with patch("recon.socket.getaddrinfo", return_value=_private_addrinfo("10.0.0.5")):
+            r = AttackSurfaceDetector.detect("internal.example", timeout=1)
+        assert r["admin_panels"] == []
+        assert r["login_pages"] == []
+        assert r["api_endpoints"] == []
+
+    def test_port_scanner_blocks_internal(self):
+        # Regression: PortScanner.scan used to skip _is_internal_host, so a
+        # hostname resolving to a private/loopback IP got port-scanned.
+        with patch("recon.socket.getaddrinfo", return_value=_private_addrinfo("10.0.0.5")):
+            r = PortScanner.scan("internal.example", timeout=1)
+        assert r["ports"] == []
+        assert r.get("blocked") == "internal address"

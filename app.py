@@ -5,6 +5,7 @@ by Alsartawi
 Professional Edition with modular architecture
 """
 import sys, os, json, argparse, getpass
+from datetime import timedelta
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from flask import Flask, render_template, request, session, redirect, jsonify
@@ -14,6 +15,7 @@ from tools.registry import ToolRegistry
 from api.routes import scans_bp, history_bp, exports_bp, system_bp
 from api.recon_routes import recon_bp
 from utils.logger import log
+from utils.security import RateLimiter
 
 # ── Login page HTML ──
 _LOGIN_HTML = """<!DOCTYPE html>
@@ -56,6 +58,11 @@ button:hover{{background:#3a7de8}}
 </form></div></body></html>"""
 
 
+# Throttle FAILED login attempts per client IP to blunt local brute-force.
+# Only failures consume budget, so a correct password is never blocked.
+_login_limiter = RateLimiter(max_requests=10, window_sec=300)
+
+
 def _setup_password():
     """Run with --setup to configure password"""
     Config.init()
@@ -81,6 +88,12 @@ def create_app():
 
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max request
+    # Session cookie hardening (defence in depth alongside Sec-Fetch + CSRF):
+    # HttpOnly keeps the cookie out of JS, SameSite=Lax blocks cross-site
+    # sends, and a finite lifetime bounds a stolen-session window.
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=12)
     app.secret_key = Config.get_secret_key()
 
     # Initialize components
@@ -112,6 +125,11 @@ def create_app():
                 session["auth"] = True
                 session.permanent = True
                 return redirect("/")
+            # Failed — throttle brute force per client IP (failures only).
+            if not _login_limiter.allow(request.remote_addr or "unknown"):
+                return _LOGIN_HTML.format(
+                    version=Config.VERSION,
+                    error='<div class="err">Too many attempts — wait a minute</div>'), 429
             error = '<div class="err">Wrong password</div>'
             return _LOGIN_HTML.format(
                 version=Config.VERSION, error=error), 401
@@ -160,6 +178,24 @@ def create_app():
         if "csrf_token" not in session:
             import secrets as _secrets
             session["csrf_token"] = _secrets.token_hex(32)
+        # ── Security headers (defence in depth) ──
+        # CSP keeps 'unsafe-inline' because the single-file UI ships inline
+        # <style>/<script>; it still pins origins and locks down framing,
+        # base-uri, form-action and object/plugin embedding. Fonts load from
+        # Google Fonts (the stylesheet) + gstatic (the font files). setdefault
+        # so a route that set its own header is never clobbered.
+        response.headers.setdefault("Content-Security-Policy",
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src https://fonts.gstatic.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self'; "
+            "object-src 'none'; base-uri 'self'; form-action 'self'; "
+            "frame-ancestors 'none'")
+        response.headers.setdefault("X-Frame-Options", "DENY")
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "no-referrer")
         return response
 
     # ── Main routes ──

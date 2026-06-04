@@ -322,6 +322,14 @@ class PortScanner:
     @staticmethod
     def scan(host, ports=None, timeout=1):
         """Scan specific ports on a host"""
+        # SSRF guard: never port-scan a host that resolves to an internal
+        # address. HTTPProber and AttackSurfaceDetector already enforce this;
+        # the port scanner used to bypass it, so a passive result pointing at
+        # 127.0.0.1 / a private range / cloud metadata could get scanned.
+        if _is_internal_host(host):
+            log.warning(f"Port scan skipped for internal host: {host}")
+            return {"host": host, "ip": None, "ports": [], "blocked": "internal address",
+                    "scanned_at": datetime.now().isoformat()}
         ports = ports or PortScanner.COMMON_PORTS.keys()
         try:
             ip = socket.gethostbyname(host)

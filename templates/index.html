@@ -562,7 +562,7 @@ function escHtml(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){r
 // ONLY that fixed, attribute-free set of spans — any other injected markup
 // (e.g. <img onerror=...> inside a WHOIS value) stays inert. Fails closed.
 function safeLog(msg){var e=escHtml(msg);return e.replace(/&lt;span class=(?:&#39;|&quot;)(hl|muted|val)(?:&#39;|&quot;)&gt;/g,'<span class="$1">').replace(/&lt;\/span&gt;/g,'</span>');}
-function log(type,msg){const t=document.getElementById('term');const o=t.querySelector('.cursor-line');if(o)o.remove();
+function log(type,msg){type=['info','found','warn','err','sys'].indexOf(type)>=0?type:'sys';const t=document.getElementById('term');const o=t.querySelector('.cursor-line');if(o)o.remove();
   const n=new Date(),time=[n.getHours(),n.getMinutes(),n.getSeconds()].map(x=>String(x).padStart(2,'0')).join(':');
   const r=document.createElement('div');r.className='tl';r.innerHTML=`<span class="tl-time">${time}</span><span class="tl-b ${type}">${type.toUpperCase()}</span><span class="tl-m">${safeLog(msg)}</span>`;
   t.appendChild(r);t.scrollTop=t.scrollHeight;if(type==='err')sndErr()}
