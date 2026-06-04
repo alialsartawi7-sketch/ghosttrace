@@ -3,7 +3,8 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
-from reports.html_report import ReportGenerator, RESULT_TYPES
+from unittest.mock import patch
+from reports.html_report import ReportGenerator, RESULT_TYPES, _pdf_url_fetcher
 
 
 @pytest.fixture(autouse=True)
@@ -300,3 +301,38 @@ class TestExecRecommendations:
             cats, "example.com", "full", 2, 1, "2 dns", 2, 100)
         assert "Recommended next steps" not in html
         assert "Bottom line:" not in html
+
+
+# ═══════════ PDF local-file-access guard ═══════════
+
+class TestPdfUrlFetcher:
+    """The PDF render path must not pull local files into the output. weasyprint
+    gets a url_fetcher that allows only remote http(s) (the web font); the
+    wkhtmltopdf fallback uses --disable-local-file-access."""
+
+    @pytest.mark.parametrize("url", [
+        "file:///etc/passwd",
+        "file://localhost/etc/shadow",
+        "ftp://host/secret",
+        "gopher://host/x",
+        "/etc/passwd",
+        "C:\\Windows\\win.ini",
+    ])
+    def test_non_network_schemes_blocked(self, url):
+        with pytest.raises(ValueError):
+            _pdf_url_fetcher(url)
+
+    def test_https_is_delegated(self):
+        import weasyprint
+        sentinel = {"string": b"@font-face{}", "mime_type": "text/css"}
+        with patch("weasyprint.default_url_fetcher", return_value=sentinel) as m:
+            out = _pdf_url_fetcher("https://fonts.googleapis.com/css2?family=Inter")
+        assert out is sentinel
+        assert m.called
+
+    def test_wkhtmltopdf_fallback_disables_local_files(self):
+        # the fallback command must not re-enable local file access
+        import inspect
+        src = inspect.getsource(ReportGenerator.html_to_pdf)
+        assert "--disable-local-file-access" in src
+        assert "--enable-local-file-access" not in src

@@ -2,8 +2,21 @@
 import os, subprocess
 from datetime import datetime
 from html import escape
+from urllib.parse import urlparse
 from config import Config
 from utils.logger import log
+
+
+def _pdf_url_fetcher(url):
+    """url_fetcher for weasyprint that refuses non-network resources. Only remote
+    http(s) URLs (e.g. the report's web font) may be fetched — a file:// (or any
+    other local-scheme) reference is blocked, so a value that ever slipped past
+    HTML escaping can't pull a local file into the rendered PDF."""
+    scheme = (urlparse(url).scheme or "").lower()
+    if scheme not in ("http", "https"):
+        raise ValueError("blocked non-network resource in report: %s" % (scheme or "local"))
+    import weasyprint
+    return weasyprint.default_url_fetcher(url)
 
 
 # ═══════════════ All supported result types ═══════════════
@@ -872,7 +885,9 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
         # Try weasyprint first
         try:
             import weasyprint
-            weasyprint.HTML(filename=html_path).write_pdf(pdf_path)
+            # url_fetcher blocks file:// (and any non-network) resources from being
+            # pulled into the PDF — the web font still loads over https.
+            weasyprint.HTML(filename=html_path, url_fetcher=_pdf_url_fetcher).write_pdf(pdf_path)
             if os.path.exists(pdf_path):
                 log.info(f"PDF generated via weasyprint: {pdf_path}")
                 return {"filename": pdf_fn, "filepath": pdf_path}
@@ -884,7 +899,7 @@ tbody tr:hover td{{background:rgba(79,142,247,0.03)}}
         # Fallback to wkhtmltopdf
         try:
             subprocess.run([
-                "wkhtmltopdf", "--enable-local-file-access",
+                "wkhtmltopdf", "--disable-local-file-access",
                 "--page-size", "A4", "--margin-top", "15mm", "--margin-bottom", "15mm",
                 "--margin-left", "15mm", "--margin-right", "15mm",
                 "--encoding", "UTF-8", "--no-background",
