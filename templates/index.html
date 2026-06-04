@@ -383,6 +383,7 @@ footer{height:26px;background:var(--surface);border-top:1px solid var(--border);
       <div id="fields-ssl" style="display:none">
         <div class="cf">
           <div class="fd grow"><span class="fl">Domain</span><input id="f-ssl" placeholder="example.com"></div>
+          <div class="fd" style="width:90px" title="Max seconds for the TLS connection before timeout"><span class="fl">Timeout (s)</span><input id="timeout-ssl" type="number" min="30" max="1800" value="240"></div>
           <button class="btn btn-p" onclick="startScan()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="5 3 19 12 5 21"/></svg>Analyze</button>
         </div>
       </div>
@@ -704,7 +705,7 @@ async function autoScan(){
       await connectSSE(`/api/scan/dns?domain=${encodeURIComponent(d.cleaned)}`);
       if(!scanning){scanning=true;setSt('scanning')}
       log('info','Phase 3/3: SSL certificate...');
-      await connectSSE(`/api/scan/ssl?domain=${encodeURIComponent(d.cleaned)}`);
+      await connectSSE(`/api/scan/ssl?domain=${encodeURIComponent(d.cleaned)}&timeout=${toA}`);
       log('info','Auto pipeline complete');sndDone()
     }
     else if(d.type==='phone'){
@@ -744,7 +745,8 @@ function startScan(){if(scanning)return;
   else if(curMod==='dns'){const d=document.getElementById('f-dns').value.trim();if(!d){log('err','Enter domain!');scanning=false;setSt('ready');return}
     url=`/api/scan/dns?domain=${encodeURIComponent(d)}`}
   else if(curMod==='ssl'){const d=document.getElementById('f-ssl').value.trim();if(!d){log('err','Enter domain!');scanning=false;setSt('ready');return}
-    url=`/api/scan/ssl?domain=${encodeURIComponent(d)}`}
+    const to=document.getElementById('timeout-ssl').value||'240';
+    url=`/api/scan/ssl?domain=${encodeURIComponent(d)}&timeout=${to}`}
   else if(curMod==='dorks'){const d=document.getElementById('f-dorks').value.trim();if(!d){log('err','Enter domain!');scanning=false;setSt('ready');return}
     url=`/api/scan/dorks?domain=${encodeURIComponent(d)}`}
   else if(curMod==='auto'){autoScan();return}

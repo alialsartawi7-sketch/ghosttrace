@@ -197,6 +197,10 @@ def scan_ssl():
         domain = Validators.domain(request.args.get("domain", ""))
     except ValidationError as e:
         return _sse_error(e.message)
+    # Honour the user's per-scan timeout for the TLS connect too, so a slow
+    # host isn't cut off at a fixed 10s while the rest of the scan gets 240s.
+    # None (no override / standalone SSL tab) falls back to the 10s default.
+    timeout = _parse_timeout(request.args.get("timeout"))
     def generate():
         from tools.ssl_cert import SSLCertAdapter
         from database.manager import ScanDB, ResultDB
@@ -206,7 +210,7 @@ def scan_ssl():
         yield sse("scan_start", {"scan_id": scan_id, "tool": "SSLCert", "target": domain})
         yield sse("log", {"type": "info", "msg": f"Analyzing SSL certificate for {domain}..."})
         yield sse("progress", {"pct": 20, "label": "Connecting"})
-        results = adapter.parse_cert(domain)
+        results = adapter.parse_cert(domain, timeout=timeout or 10)
         yield sse("progress", {"pct": 70, "label": "Parsing certificate"})
         count = 0
         for r in results:

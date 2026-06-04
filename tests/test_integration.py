@@ -164,3 +164,38 @@ class TestValidation:
         r = client.get('/api/scan/metadata?filepath=../../etc/passwd')
         data = r.data.decode()
         assert 'denied' in data.lower() or 'traversal' in data.lower() or 'error' in data.lower()
+
+
+class TestSSLTimeout:
+    """The TLS connect timeout must follow the user's per-scan setting
+    (was fixed at 10s while the rest of the scan honoured 240s)."""
+
+    def _patch_capture(self, monkeypatch):
+        captured = {}
+        from tools.ssl_cert import SSLCertAdapter
+
+        def fake_parse_cert(self, target, port="443", timeout=10):
+            captured["timeout"] = timeout
+            return [{"value": "Common Name: x", "source": "SSLCert",
+                     "type": "ssl", "confidence": 0.9, "extra": "CN"}]
+
+        monkeypatch.setattr(SSLCertAdapter, "parse_cert", fake_parse_cert)
+        return captured
+
+    def test_user_timeout_is_forwarded(self, client, monkeypatch):
+        captured = self._patch_capture(monkeypatch)
+        r = client.get("/api/scan/ssl?domain=example.com&timeout=300")
+        r.get_data(as_text=True)  # drain the SSE stream
+        assert captured.get("timeout") == 300
+
+    def test_timeout_is_clamped(self, client, monkeypatch):
+        captured = self._patch_capture(monkeypatch)
+        r = client.get("/api/scan/ssl?domain=example.com&timeout=99999")
+        r.get_data(as_text=True)
+        assert captured.get("timeout") == 1800  # clamped to the 1800s ceiling
+
+    def test_default_when_absent(self, client, monkeypatch):
+        captured = self._patch_capture(monkeypatch)
+        r = client.get("/api/scan/ssl?domain=example.com")
+        r.get_data(as_text=True)
+        assert captured.get("timeout") == 10  # falls back to the 10s default
